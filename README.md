@@ -1,3 +1,10 @@
+Team - EENDHAN
+Tanishq mandolkar
+Yuvraj kakade
+Devavrat dhaygude
+Anish maniyar
+
+
 # EENDHAN
 
 This starter full stack project has been generated using AlgoKit. See below for default getting started instructions.
