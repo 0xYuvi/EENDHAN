@@ -1,6 +1,9 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Zap, ShieldCheck, Gem, Bot, ArrowRight, ChevronRight } from 'lucide-react'
+import ResumeReviewer from '../components/ResumeReviewer'
+import ApiDocs from '../components/ApiDocs'
+import { GlobalTouchEffect } from '../components/TouchEffect'
 
 /* ═══════════════════════════════════════════════════════════════
    Animation variants
@@ -10,7 +13,7 @@ const fadeUp = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
   }),
 }
 
@@ -154,66 +157,142 @@ const FeatureCard: React.FC<{
   index: number
 }> = ({ icon: Icon, title, desc, index }) => {
   const [hovered, setHovered] = React.useState(false)
+  const cardRef = React.useRef<HTMLDivElement>(null)
+  const [mousePos, setMousePos] = React.useState({ x: 0, y: 0, cX: 0, cY: 0 })
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setMousePos({ 
+      x, 
+      y, 
+      cX: x - (rect.width / 2), 
+      cY: y - (rect.height / 2) 
+    })
+  }
+
+  // 3D Tilt parameters
+  const rotateX = hovered ? -(mousePos.cY / 25) : 0
+  const rotateY = hovered ? (mousePos.cX / 25) : 0
+
+  // Magnetism offsets
+  const tx = hovered ? (mousePos.cX / 15) : 0
+  const ty = hovered ? (mousePos.cY / 15) : 0
 
   return (
     <motion.div
+      ref={cardRef}
       custom={index}
       variants={fadeUp}
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true }}
+      onMouseMove={handleMouseMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
+        position: 'relative',
         background: '#111111',
-        border: '1px solid #2a2a2a',
-        borderLeft: hovered ? '3px solid #A78BFA' : '1px solid #2a2a2a',
+        border: '1px solid transparent',
         borderRadius: '16px',
         padding: '32px',
-        transition: 'border 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease',
         cursor: 'default',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        boxShadow: hovered ? '0 8px 30px rgba(167, 139, 250, 0.08)' : 'none',
+        transform: hovered 
+          ? `translateY(-4px) perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)` 
+          : 'translateY(0) perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: hovered ? 'box-shadow 0.25s ease' : 'transform 0.4s ease-out, box-shadow 0.25s ease, border 0.3s ease',
+        boxShadow: hovered ? '0 15px 40px rgba(167, 139, 250, 0.1)' : 'none',
       }}
     >
-      {/* Icon container */}
-      <div
+      {/* Outer Border Glow */}
+      <div 
         style={{
-          background: 'rgba(167,139,250,0.15)',
-          borderRadius: '12px',
-          padding: '12px',
-          width: '48px',
-          height: '48px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '20px',
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, rgba(167, 139, 250, 0.8), transparent 40%)`,
+          opacity: hovered ? 1 : 0,
+          transition: 'opacity 0.4s ease',
+          pointerEvents: 'none',
+          borderRadius: '16px',
+          zIndex: -2,
+          margin: '-1px'
         }}
-      >
-        <Icon size={24} color="#A78BFA" />
-      </div>
+      />
+      {/* Inner dark background mask */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: 1, left: 1, right: 1, bottom: 1,
+          background: '#111111',
+          borderRadius: '15px',
+          zIndex: -1,
+          pointerEvents: 'none'
+        }}
+      />
+      {/* Magic Bento Glow Spotlight */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, rgba(167, 139, 250, 0.12), transparent 40%)`,
+          opacity: hovered ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: 'none',
+          zIndex: 0
+        }}
+      />
 
-      <h3
-        style={{
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: '18px',
-          fontWeight: 600,
-          color: '#F5F5F5',
-          marginBottom: '10px',
+      <div 
+        style={{ 
+          position: 'relative', 
+          zIndex: 1,
+          transform: `translate(${tx}px, ${ty}px)`,
+          transition: hovered ? 'none' : 'transform 0.4s ease-out'
         }}
       >
-        {title}
-      </h3>
-      <p
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: '14px',
-          lineHeight: '1.6',
-          color: '#A0A0A0',
-        }}
-      >
-        {desc}
-      </p>
+        {/* Icon container */}
+        <div
+          style={{
+            background: 'rgba(167,139,250,0.15)',
+            borderRadius: '12px',
+            padding: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '20px',
+            transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            transform: hovered ? 'scale(1.15) rotate(-5deg)' : 'scale(1) rotate(0deg)'
+          }}
+        >
+          <Icon size={24} color="#A78BFA" />
+        </div>
+
+        <h3
+          style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#F5F5F5',
+            marginBottom: '10px',
+          }}
+        >
+          {title}
+        </h3>
+        <p
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: '14px',
+            lineHeight: '1.6',
+            color: '#A0A0A0',
+          }}
+        >
+          {desc}
+        </p>
+      </div>
     </motion.div>
   )
 }
@@ -224,6 +303,7 @@ const FeatureCard: React.FC<{
 const LandingPage: React.FC = () => {
   return (
     <div style={{ background: '#050505', minHeight: '100vh' }}>
+      <GlobalTouchEffect />
       {/* ── HERO ─────────────────────────────────────────────── */}
       <section
         style={{
@@ -705,97 +785,29 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── CTA SECTION ──────────────────────────────────────── */}
+      {/* ── RESUME REVIEWER ──────────────────────────────────────── */}
       <section
+        id="get-started"
         style={{
           padding: '100px 5vw',
           maxWidth: '1280px',
           margin: '0 auto',
-          textAlign: 'center',
         }}
       >
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          style={{
-            background: '#0A0A0A',
-            border: '1px solid #2a2a2a',
-            borderRadius: '24px',
-            padding: '80px 40px',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Glow */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-100px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '500px',
-              height: '500px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(167,139,250,0.1) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }}
-          />
+        <ResumeReviewer />
+      </section>
 
-          <h2
-            style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 'clamp(1.8rem, 4vw, 3rem)',
-              fontWeight: 700,
-              color: '#F5F5F5',
-              letterSpacing: '-0.02em',
-              marginBottom: '16px',
-              position: 'relative',
-            }}
-          >
-            Ready to monetize your AI?
-          </h2>
-          <p
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: '16px',
-              color: '#A0A0A0',
-              maxWidth: '500px',
-              margin: '0 auto 32px',
-              position: 'relative',
-            }}
-          >
-            Deploy an AI endpoint, set your price in ALGO, and start earning per inference — in minutes.
-          </p>
-          <a
-            href="#get-started"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: '#A78BFA',
-              color: '#fff',
-              padding: '16px 36px',
-              borderRadius: '9999px',
-              fontSize: '16px',
-              fontWeight: 600,
-              transition: 'all 0.2s ease',
-              position: 'relative',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#9171e8'
-              e.currentTarget.style.transform = 'translateY(-2px)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#A78BFA'
-              e.currentTarget.style.transform = 'translateY(0)'
-            }}
-          >
-            Get Started
-            <ArrowRight size={18} />
-          </a>
-        </motion.div>
+      {/* ── API DOCS ─────────────────────────────────────────── */}
+      <section
+        id="docs"
+        style={{
+          padding: '100px 5vw',
+          maxWidth: '1280px',
+          margin: '0 auto',
+          borderTop: '1px solid #1a1a1a',
+        }}
+      >
+        <ApiDocs />
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────────── */}

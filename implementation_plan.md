@@ -46,18 +46,12 @@ We divide the problem statement to prevent overlapping file changes.
 - Mock the API responses until Member 1 and Member 3 have the backend ready.
 - **Zero Conflict Strategy:** Member 2 is the ONLY person editing files inside the frontend directory. They rely completely on agreeing on a JSON API shape with Member 1.
 
-### Member 3 — Blockchain & x402 Flow Lead
-**Workspace:** `/projects/backend/x402/` & `/projects/Anil_Fireworks-contracts/`
-- Write the Algorand logic to generate the x402 Payment Challenge (`POST /api/x402/challenge`).
-- Write the logic to verify transactions hitting the Algorand testnet directly inside FastAPI (`POST /api/x402/verify`). Checks proper target amount, target wallet, and prevents double-spending the same `tx_hash`.
-- If required, write explicit smart contracts in Python/Puya to handle payout splits.
-- **Zero Conflict Strategy:** Member 3 only writes Python code within their dedicated `/projects/backend/x402` module folder or the contracts folder. They expose a clean python function `verify_payment(tx_hash, session_id)` that Member 1 can import.
 
 ### Member 4 — AI & Product Lead
 **Workspace:** `/projects/backend/ai_engine/` and `/docs/`
-- Write out the premium Gemini/OpenAI prompt templates (e.g., the exact prompt sequence for a "Premium Resume Reviewer").
-- Build the `POST /api/execute/{endpoint_id}` AI pipeline. Takes the user's prompt string, wraps it with system prompts securely, hits Gemini, formats the output, and returns it.
-- **Zero Conflict Strategy:** Only works inside `ai_engine.py` or `prompts/`. They provide a single function `run_ai(user_input, endpoint_details)` which Member 1 imports into the main FastAPI route.
+- [x] Write out the premium Gemini/OpenAI (Groq) prompt templates (e.g., the exact prompt sequence for a "Premium Resume Reviewer").
+- [x] Build the `POST /api/execute/{endpoint_id}` AI pipeline. Takes the user's prompt string, wraps it with system prompts securely, hits Gemini/Groq, formats the output, and returns it.
+- **Zero Conflict Strategy:** Only works inside `ai_engine/`. They provide a single function `run_analyzer(resume_text)` which Member 1 imports into the main FastAPI route.
 
 ## Git Conflict Prevention Strategy
 
@@ -97,3 +91,9 @@ If Member 1 edits `backend/routes.py` and Member 3 edits `backend/x402/verify.py
 - All branches merged into `main`.
 - Use AlgoKit LocalNet or TestNet to process a real wallet payment transaction in the browser.
 - Verify the FastAPI backend successfully delegates to the AI script, logging results successfully to Supabase.
+### Member 3 — Blockchain & x402 Flow Lead
+**Workspace:** `/projects/backend/x402/` & `/projects/Anil_Fireworks-contracts/`
+- Write the Algorand logic to generate the x402 Payment Challenge (`POST /api/x402/challenge`).
+- Write the logic to verify transactions hitting the Algorand testnet directly inside FastAPI (`POST /api/x402/verify`). Checks proper target amount, target wallet, and prevents double-spending the same `tx_hash`.
+- If required, write explicit smart contracts in Python/Puya to handle payout splits.
+- **Zero Conflict Strategy:** Member 3 only writes Python code within their dedicated `/projects/backend/x402` module folder or the contracts folder. They expose a clean python function `verify_payment(tx_hash, session_id)` that Member 1 can import.

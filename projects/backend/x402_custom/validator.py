@@ -4,7 +4,8 @@ from typing import Any
 from algosdk import encoding
 from algosdk.v2client.algod import AlgodClient
 
-USDC_ASA_ID = 10458941
+# 1 ALGO = 1_000_000 microALGO
+PAYMENT_AMOUNT_ALGO = 0.5  # price in ALGO
 ALGORAND_TESTNET = "testnet"
 
 
@@ -13,18 +14,19 @@ class X402Validator:
         self.algod = algorand_client
         self.receiver_address = receiver_address
 
-    def issue_challenge(self, price_usd: float, endpoint: str) -> dict[str, Any]:
+    def issue_challenge(self, price_algo: float, endpoint: str) -> dict[str, Any]:
         """
         Generates a 402 Required response with Algorand TestNet details.
+        Payment is in native ALGO (not USDC ASA).
 
         Args:
-            price_usd: Price in USD (e.g., 0.01 for 1 cent)
+            price_algo: Price in ALGO (e.g., 0.5)
             endpoint: The API endpoint being accessed
 
         Returns:
             402 response dict with payment requirements
         """
-        amount_micro_usdc = int(price_usd * 1_000_000)
+        amount_micro_algo = int(price_algo * 1_000_000)
 
         return {
             "error": "Payment Required",
@@ -33,8 +35,8 @@ class X402Validator:
                 "network": "testnet",
                 "conditions": {
                     "receiver": self.receiver_address,
-                    "assetId": USDC_ASA_ID,
-                    "amount": amount_micro_usdc,
+                    "amount": amount_micro_algo,   # in microALGO
+                    "currency": "ALGO",
                     "description": f"Payment for {endpoint}",
                 },
                 "handshake": {
@@ -49,7 +51,7 @@ class X402Validator:
         self, tx64: str, session_id: str, supabase_client: Any
     ) -> dict[str, Any]:
         """
-        Verifies the base64-encoded transaction from X-PAYMENT header.
+        Verifies the base64-encoded ALGO payment transaction from X-PAYMENT header.
 
         Args:
             tx64: Base64-encoded signed transaction
@@ -63,16 +65,11 @@ class X402Validator:
             signed_tx = encoding.msgpack_decode(tx64)
             tx = signed_tx.transaction
 
-            if tx.type != "axfer":
+            # Expect native ALGO payment (type "pay"), not an ASA transfer
+            if tx.type != "pay":
                 return {
                     "success": False,
-                    "error": f"Invalid transaction type: {tx.type}. Expected asset transfer.",
-                }
-
-            if tx.index != USDC_ASA_ID:
-                return {
-                    "success": False,
-                    "error": f"Invalid asset: {tx.index}. Expected USDC ({USDC_ASA_ID}).",
+                    "error": f"Invalid transaction type: {tx.type}. Expected native ALGO payment (pay).",
                 }
 
             if str(tx.receiver) != self.receiver_address:
@@ -83,10 +80,11 @@ class X402Validator:
 
             txid = tx.get_txid()
 
+            # Replay attack prevention via Supabase payment_sessions table
             existing = (
-                supabase_client.table("payments")
-                .select("txid")
-                .eq("txid", txid)
+                supabase_client.table("payment_sessions")
+                .select("id")
+                .eq("nonce", txid)
                 .execute()
             )
             if existing.data:
@@ -99,28 +97,24 @@ class X402Validator:
             if not confirmed:
                 return {"success": False, "error": "Transaction not confirmed on-chain"}
 
-            supabase_client.table("payments").insert(
-                {
-                    "txid": txid,
-                    "session_id": session_id,
-                    "sender": str(tx.sender),
-                    "amount": tx.amount,
-                    "asset_id": tx.index,
-                    "status": "verified",
-                }
-            ).execute()
-
-            supabase_client.table("sessions").update({"status": "paid"}).eq(
-                "id", session_id
-            ).execute()
+            # Log verified payment — update the existing session row
+            try:
+                supabase_client.table("payment_sessions").update(
+                    {
+                        "status": "verified",
+                        "nonce": txid,  # store txid in nonce field for replay protection
+                    }
+                ).eq("id", session_id).execute()
+            except Exception as db_err:
+                print(f"[WARN] DB update failed (non-fatal): {db_err}")
 
             return {
                 "success": True,
                 "txid": txid,
                 "sender": str(tx.sender),
-                "amount": tx.amount,
-                "amount_human": tx.amount / 1_000_000,
-                "asset_id": tx.index,
+                "amount": tx.amt,
+                "amount_human": f"{tx.amt / 1_000_000:.6f} ALGO",
+                "currency": "ALGO",
                 "session_id": session_id,
             }
 

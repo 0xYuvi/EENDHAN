@@ -1,7 +1,7 @@
 import { useWallet } from '@txnlab/use-wallet-react'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
-import { EendhanFactory } from '../contracts/Eendhan'
+// import { EendhanFactory } from '../contracts/Eendhan' // contract not yet generated
 import { OnSchemaBreak, OnUpdate } from '@algorandfoundation/algokit-utils/types/app'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
@@ -33,15 +33,10 @@ const AppCalls = ({ openModal, setModalState }: AppCallsInterface) => {
     // Instead, you would deploy your contract on your backend and reference it by id.
     // Given the simplicity of the starter contract, we are deploying it on the frontend
     // for demonstration purposes.
-    const factory = new EendhanFactory({
-      defaultSender: activeAddress ?? undefined,
-      algorand,
-    })
+    // Contract not yet generated — placeholder
+    const factory = { deploy: async () => undefined } as any
     const deployResult = await factory
-      .deploy({
-        onSchemaBreak: OnSchemaBreak.AppendApp,
-        onUpdate: OnUpdate.AppendApp,
-      })
+      .deploy({})
       .catch((e: Error) => {
         enqueueSnackbar(`Error deploying the contract: ${e.message}`, { variant: 'error' })
         setLoading(false)
