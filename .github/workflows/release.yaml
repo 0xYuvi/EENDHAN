@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  Anil_Fireworks-contracts-validate:
+    name: Run Anil_Fireworks-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/Anil_Fireworks-contracts-ci.yaml
+
+  Anil_Fireworks-contracts-release:
+    name: Run Anil_Fireworks-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/Anil_Fireworks-contracts-cd.yaml
+    needs: Anil_Fireworks-contracts-validate
+
+  Anil_Fireworks-frontend-validate:
+    name: Run Anil_Fireworks-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/Anil_Fireworks-frontend-ci.yaml
+
+  Anil_Fireworks-frontend-release:
+    name: Run Anil_Fireworks-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/Anil_Fireworks-frontend-cd.yaml
+    needs: Anil_Fireworks-frontend-validate
