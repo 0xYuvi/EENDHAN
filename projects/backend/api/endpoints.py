@@ -1,36 +1,48 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from db.models import CreateEndpointReq
-import uuid
+from db.supabase_client import supabase
 
 router = APIRouter(prefix="/api/endpoints", tags=["endpoints"])
 
-# Mock database
-mock_endpoints = [
-    {
-        "endpointId": str(uuid.uuid4()),
-        "creatorWallet": "MO2H6ZU47Q36GJ6GVHUKGECGVK5X2O6VDNVH24YOGL2Y7Y74XWDBQJ4Z6A",
-        "title": "Premium Resume Reviewer",
-        "priceAlgo": 1.5,
-        "category": "Career"
-    }
-]
-
 @router.post("/create")
 async def create_endpoint(req: CreateEndpointReq):
-    new_id = str(uuid.uuid4())
-    mock_endpoints.append({
-        "endpointId": new_id,
-        "creatorWallet": req.creatorWallet,
-        "title": req.title,
-        "priceAlgo": req.priceAlgo,
-        "category": req.category
-    })
-    return {
-        "status": "success",
-        "endpointId": new_id,
-        "message": "Endpoint created successfully"
-    }
+    try:
+        data, count = supabase.table("endpoints").insert({
+            "creator_wallet": req.creatorWallet,
+            "title": req.title,
+            "price_algo": req.priceAlgo,
+            "system_prompt": req.systemPrompt,
+            "category": req.category
+        }).execute()
+        
+        if len(data[1]) == 0:
+            raise Exception("No data returned from DB")
+            
+        endpoint_id = data[1][0]['id']
+        return {
+            "status": "success",
+            "endpointId": endpoint_id,
+            "message": "Endpoint created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("")
 async def list_endpoints():
-    return {"endpoints": mock_endpoints}
+    try:
+        data, count = supabase.table("endpoints").select("*").execute()
+        
+        # Format snake_case to camelCase mapping for the API contract
+        formatted_endpoints = []
+        for row in data[1]:
+            formatted_endpoints.append({
+                "endpointId": row["id"],
+                "creatorWallet": row["creator_wallet"],
+                "title": row["title"],
+                "priceAlgo": float(row["price_algo"]),
+                "category": row["category"]
+            })
+            
+        return {"endpoints": formatted_endpoints}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
