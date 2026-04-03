@@ -1,0 +1,354 @@
+#pragma version 11
+#pragma typetrack false
+
+// algopy.arc4.ARC4Contract.approval_program() -> uint64:
+main:
+    intcblock 0 1 4 32 10458941
+    bytecblock "creator_address" "treasury_address" "usdc_asset" 0x151f7c75
+    txn ApplicationID
+    bnz main_after_if_else@2
+    // smart_contracts/eendhan/contract.py:24
+    // self.treasury_address = Account()
+    bytec_1 // "treasury_address"
+    global ZeroAddress
+    app_global_put
+    // smart_contracts/eendhan/contract.py:25
+    // self.creator_address = Account()
+    bytec_0 // "creator_address"
+    global ZeroAddress
+    app_global_put
+    // smart_contracts/eendhan/contract.py:26
+    // self.usdc_asset = Asset()
+    bytec_2 // "usdc_asset"
+    intc_0 // 0
+    app_global_put
+
+main_after_if_else@2:
+    // smart_contracts/eendhan/contract.py:17
+    // class Eendhan(ARC4Contract):
+    txn OnCompletion
+    !
+    assert
+    txn ApplicationID
+    bz main_create_NoOp@11
+    pushbytess 0xdc105175 0x89ec265e 0xf45fd4d5 0xdeef7084 0x202a0e19 // method "opt_in_to_usdc()void", method "process_payment_split(axfer)void", method "update_treasury(address)void", method "get_treasury()address", method "get_creator()address"
+    txna ApplicationArgs 0
+    match opt_in_to_usdc process_payment_split update_treasury get_treasury get_creator
+    err
+
+main_create_NoOp@11:
+    // smart_contracts/eendhan/contract.py:17
+    // class Eendhan(ARC4Contract):
+    pushbytes 0x8a96980e // method "create(address,address)void"
+    txna ApplicationArgs 0
+    match create
+    err
+
+
+// smart_contracts.eendhan.contract.Eendhan.create[routing]() -> void:
+create:
+    // smart_contracts/eendhan/contract.py:28
+    // @abimethod(create="require")
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_3 // 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    txna ApplicationArgs 2
+    dup
+    len
+    intc_3 // 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    // smart_contracts/eendhan/contract.py:33
+    // self.treasury_address = treasury
+    bytec_1 // "treasury_address"
+    uncover 2
+    app_global_put
+    // smart_contracts/eendhan/contract.py:34
+    // self.creator_address = creator
+    bytec_0 // "creator_address"
+    swap
+    app_global_put
+    // smart_contracts/eendhan/contract.py:35
+    // self.usdc_asset = Asset(USDC_ASSET_ID)
+    bytec_2 // "usdc_asset"
+    intc 4 // 10458941
+    app_global_put
+    // smart_contracts/eendhan/contract.py:28
+    // @abimethod(create="require")
+    intc_1 // 1
+    return
+
+
+// smart_contracts.eendhan.contract.Eendhan.opt_in_to_usdc[routing]() -> void:
+opt_in_to_usdc:
+    // smart_contracts/eendhan/contract.py:43
+    // assert op.Txn.sender == self.creator_address, "Only creator can opt in to assets"
+    txn Sender
+    intc_0 // 0
+    bytec_0 // "creator_address"
+    app_global_get_ex
+    assert // check self.creator_address exists
+    swap
+    dig 1
+    ==
+    assert // Only creator can opt in to assets
+    // smart_contracts/eendhan/contract.py:44
+    // assert not op.Global.zero_address == self.creator_address, "Creator not set"
+    global ZeroAddress
+    ==
+    !
+    assert // Creator not set
+    // smart_contracts/eendhan/contract.py:46-51
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=Global.current_application_address,
+    //     asset_amount=UInt64(0),
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_begin
+    // smart_contracts/eendhan/contract.py:47
+    // xfer_asset=self.usdc_asset,
+    intc_0 // 0
+    bytec_2 // "usdc_asset"
+    app_global_get_ex
+    assert // check self.usdc_asset exists
+    // smart_contracts/eendhan/contract.py:48
+    // asset_receiver=Global.current_application_address,
+    global CurrentApplicationAddress
+    // smart_contracts/eendhan/contract.py:49
+    // asset_amount=UInt64(0),
+    intc_0 // 0
+    itxn_field AssetAmount
+    itxn_field AssetReceiver
+    itxn_field XferAsset
+    // smart_contracts/eendhan/contract.py:46
+    // itxn.AssetTransfer(
+    intc_2 // axfer
+    itxn_field TypeEnum
+    // smart_contracts/eendhan/contract.py:50
+    // fee=UInt64(0),
+    intc_0 // 0
+    itxn_field Fee
+    // smart_contracts/eendhan/contract.py:46-51
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=Global.current_application_address,
+    //     asset_amount=UInt64(0),
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_submit
+    // smart_contracts/eendhan/contract.py:37
+    // @abimethod()
+    intc_1 // 1
+    return
+
+
+// smart_contracts.eendhan.contract.Eendhan.process_payment_split[routing]() -> void:
+process_payment_split:
+    // smart_contracts/eendhan/contract.py:53
+    // @abimethod()
+    txn GroupIndex
+    intc_1 // 1
+    -
+    dup
+    gtxns TypeEnum
+    intc_2 // axfer
+    ==
+    assert // transaction type is axfer
+    // smart_contracts/eendhan/contract.py:59
+    // assert payment.xfer_asset.id == UInt64(USDC_ASSET_ID), "Only USDC accepted"
+    dup
+    gtxns XferAsset
+    intc 4 // 10458941
+    ==
+    assert // Only USDC accepted
+    // smart_contracts/eendhan/contract.py:60
+    // assert payment.asset_receiver == Global.current_application_address, "Payment must be sent to contract"
+    dup
+    gtxns AssetReceiver
+    global CurrentApplicationAddress
+    ==
+    assert // Payment must be sent to contract
+    // smart_contracts/eendhan/contract.py:61
+    // assert payment.asset_amount > UInt64(0), "Payment amount must be positive"
+    gtxns AssetAmount
+    dup
+    assert // Payment amount must be positive
+    // smart_contracts/eendhan/contract.py:64
+    // treasury_fee = (amount * UInt64(PLATFORM_FEE_BASIS_POINTS)) // UInt64(10000)
+    dup
+    pushint 500
+    *
+    pushint 10000
+    /
+    dup
+    uncover 2
+    // smart_contracts/eendhan/contract.py:65
+    // creator_amount = amount - treasury_fee
+    dig 1
+    -
+    swap
+    // smart_contracts/eendhan/contract.py:67
+    // if treasury_fee > UInt64(0):
+    bz process_payment_split_after_if_else@4
+    // smart_contracts/eendhan/contract.py:68-73
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=self.treasury_address,
+    //     asset_amount=treasury_fee,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_begin
+    // smart_contracts/eendhan/contract.py:69
+    // xfer_asset=self.usdc_asset,
+    intc_0 // 0
+    bytec_2 // "usdc_asset"
+    app_global_get_ex
+    assert // check self.usdc_asset exists
+    // smart_contracts/eendhan/contract.py:70
+    // asset_receiver=self.treasury_address,
+    intc_0 // 0
+    bytec_1 // "treasury_address"
+    app_global_get_ex
+    assert // check self.treasury_address exists
+    dig 3
+    itxn_field AssetAmount
+    itxn_field AssetReceiver
+    itxn_field XferAsset
+    // smart_contracts/eendhan/contract.py:68
+    // itxn.AssetTransfer(
+    intc_2 // axfer
+    itxn_field TypeEnum
+    // smart_contracts/eendhan/contract.py:72
+    // fee=UInt64(0),
+    intc_0 // 0
+    itxn_field Fee
+    // smart_contracts/eendhan/contract.py:68-73
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=self.treasury_address,
+    //     asset_amount=treasury_fee,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_submit
+
+process_payment_split_after_if_else@4:
+    // smart_contracts/eendhan/contract.py:75
+    // if creator_amount > UInt64(0):
+    dup
+    bz process_payment_split_after_if_else@7
+    // smart_contracts/eendhan/contract.py:76-81
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=self.creator_address,
+    //     asset_amount=creator_amount,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_begin
+    // smart_contracts/eendhan/contract.py:77
+    // xfer_asset=self.usdc_asset,
+    intc_0 // 0
+    bytec_2 // "usdc_asset"
+    app_global_get_ex
+    assert // check self.usdc_asset exists
+    // smart_contracts/eendhan/contract.py:78
+    // asset_receiver=self.creator_address,
+    intc_0 // 0
+    bytec_0 // "creator_address"
+    app_global_get_ex
+    assert // check self.creator_address exists
+    dig 2
+    itxn_field AssetAmount
+    itxn_field AssetReceiver
+    itxn_field XferAsset
+    // smart_contracts/eendhan/contract.py:76
+    // itxn.AssetTransfer(
+    intc_2 // axfer
+    itxn_field TypeEnum
+    // smart_contracts/eendhan/contract.py:80
+    // fee=UInt64(0),
+    intc_0 // 0
+    itxn_field Fee
+    // smart_contracts/eendhan/contract.py:76-81
+    // itxn.AssetTransfer(
+    //     xfer_asset=self.usdc_asset,
+    //     asset_receiver=self.creator_address,
+    //     asset_amount=creator_amount,
+    //     fee=UInt64(0),
+    // ).submit()
+    itxn_submit
+
+process_payment_split_after_if_else@7:
+    // smart_contracts/eendhan/contract.py:53
+    // @abimethod()
+    intc_1 // 1
+    return
+
+
+// smart_contracts.eendhan.contract.Eendhan.update_treasury[routing]() -> void:
+update_treasury:
+    // smart_contracts/eendhan/contract.py:83
+    // @abimethod()
+    txna ApplicationArgs 1
+    dup
+    len
+    intc_3 // 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    // smart_contracts/eendhan/contract.py:88
+    // assert op.Txn.sender == self.creator_address, "Only creator can update treasury"
+    txn Sender
+    intc_0 // 0
+    bytec_0 // "creator_address"
+    app_global_get_ex
+    assert // check self.creator_address exists
+    ==
+    assert // Only creator can update treasury
+    // smart_contracts/eendhan/contract.py:89
+    // self.treasury_address = new_treasury
+    bytec_1 // "treasury_address"
+    swap
+    app_global_put
+    // smart_contracts/eendhan/contract.py:83
+    // @abimethod()
+    intc_1 // 1
+    return
+
+
+// smart_contracts.eendhan.contract.Eendhan.get_treasury[routing]() -> void:
+get_treasury:
+    // smart_contracts/eendhan/contract.py:94
+    // return self.treasury_address
+    intc_0 // 0
+    bytec_1 // "treasury_address"
+    app_global_get_ex
+    assert // check self.treasury_address exists
+    // smart_contracts/eendhan/contract.py:91
+    // @abimethod()
+    bytec_3 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+
+// smart_contracts.eendhan.contract.Eendhan.get_creator[routing]() -> void:
+get_creator:
+    // smart_contracts/eendhan/contract.py:99
+    // return self.creator_address
+    intc_0 // 0
+    bytec_0 // "creator_address"
+    app_global_get_ex
+    assert // check self.creator_address exists
+    // smart_contracts/eendhan/contract.py:96
+    // @abimethod()
+    bytec_3 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return

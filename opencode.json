@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kappa": {
+      "type": "remote",
+      "url": "https://algorand-docs.mcp.kapa.ai/",
+      "enabled": true
+    },
+    "vibekit-mcp": {
+      "type": "local",
+      "command": [
+        "/Users/yuvi/.local/bin/vibekit",
+        "mcp"
+      ],
+      "environment": {},
+      "enabled": true
+    }
+  }
+}
