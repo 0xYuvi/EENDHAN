@@ -2,20 +2,27 @@ import React, { useState } from 'react'
 import { useWallet } from '@txnlab/use-wallet-react'
 import algosdk from 'algosdk'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, CheckCircle, Loader2, AlertCircle, Wallet, LogOut, TerminalSquare } from 'lucide-react'
+import { Bot, CheckCircle, Loader2, AlertCircle, Wallet, LogOut, TerminalSquare, Zap, Gauge, Clock } from 'lucide-react'
 
-// Algorand Testnet config
 const algodToken = ''
 const algodServer = 'https://testnet-api.algonode.cloud'
 const algodPort = ''
 const algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort)
 
 const BACKEND_URL = 'http://localhost:8000'
-const USDC_ASSET_ID = 10458941 // Circle USDC on Algorand Testnet
+const USDC_ASSET_ID = 10458941
+
+const TIER_OPTIONS = [
+  { value: 'basic', label: 'Basic', desc: 'Standard tier' },
+  { value: 'standard', label: 'Standard', desc: 'Faster processing' },
+  { value: 'professional', label: 'Professional', desc: 'Priority queue' },
+  { value: 'enterprise', label: 'Enterprise', desc: 'Dedicated resources' },
+]
 
 const GatewayTester: React.FC = () => {
   const [endpointId, setEndpointId] = useState('123e4567-e89b-12d3-a456-426614174000')
   const [jsonPayload, setJsonPayload] = useState('{\n  "query": "Hello, AI!"\n}')
+  const [selectedTier, setSelectedTier] = useState('basic')
   
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'payment_required' | 'paying' | 'success' | 'error'>('idle')
   const [log, setLog] = useState<string[]>([])
@@ -23,6 +30,7 @@ const GatewayTester: React.FC = () => {
   const [connectingWallet, setConnectingWallet] = useState(false)
   const [timeLeft, setTimeLeft] = useState(60)
   const [challenge, setChallenge] = useState<any>(null)
+  const [velocityCapped, setVelocityCapped] = useState(false)
 
   const { activeAddress, wallets, signTransactions, isReady } = useWallet()
 
@@ -92,20 +100,45 @@ const GatewayTester: React.FC = () => {
 
       const resp = await fetch(`${BACKEND_URL}/api/execute/${endpointId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-AI-Tier': selectedTier
+        },
         body: JSON.stringify(reqBody)
       })
 
       if (resp.status === 402) {
         const data = await resp.json()
+        
+        // Check for velocity capping
+        if (data.velocityCapped) {
+          setVelocityCapped(true)
+          setStatus('error')
+          addLog(`Velocity cap exceeded: ${data.currentSpend / 1000000} USDC / $50 limit`)
+          return
+        }
+        
         setChallenge(data)
-        setTimeLeft(60) // Reset timer to 60s
+        setTimeLeft(60)
         setStatus('payment_required')
         
+        // Display tier info if available
+        const tierInfo = data.requestedTier ? ` (${data.requestedTier} tier)` : ''
         const usdcCost = data.x402?.conditions?.amount / 1000000 || "0"
-        addLog(`Received 402 Payment Required. Cost: ${usdcCost} USDC`)
+        addLog(`Received 402 Payment Required${tierInfo}. Cost: ${usdcCost} USDC`)
+        
+        // Show available tiers in log
+        if (data.tierPricing) {
+          const tiers = Object.entries(data.tierPricing).map(([k, v]: [string, any]) => 
+            `${k}: ${v/1000000} USDC`
+          ).join(', ')
+          addLog(`Available tiers: ${tiers}`)
+        }
         
         await handlePaymentFlow(data, reqBody)
+      } else if (resp.status === 429) {
+        setStatus('error')
+        addLog('Rate limited. Please wait 60 seconds and retry.')
       } else if (resp.ok) {
         const data = await resp.json()
         setStatus('success')
@@ -207,7 +240,11 @@ const GatewayTester: React.FC = () => {
           AlgoGate Proxy Sandbox
         </h2>
         <p style={{ color: '#A0A0A0', fontFamily: "'Inter', sans-serif", fontSize: '14px' }}>
-          Test any registered endpoint · Cost: <strong style={{ color: '#A78BFA' }}>{targetCostUsdc} USDC</strong> · Paid on Algorand TestNet
+          Test any registered endpoint · Tier: <strong style={{ color: '#A78BFA' }}>{selectedTier}</strong> · 
+          Cost: <strong style={{ color: '#A78BFA' }}>{targetCostUsdc} USDC</strong> · 
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <Gauge size={12} /> $50/10min velocity cap
+          </span>
         </p>
       </div>
 
@@ -311,6 +348,47 @@ const GatewayTester: React.FC = () => {
                 opacity: isBusy ? 0.6 : 1,
               }}
             />
+          </div>
+
+          {/* Tier Selection */}
+          <div>
+            <label style={{
+              color: '#A78BFA', fontFamily: "'Inter', sans-serif",
+              fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}>
+              <Zap size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+              Pricing Tier
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '8px' }}>
+              {TIER_OPTIONS.map(tier => (
+                <button
+                  key={tier.value}
+                  onClick={() => setSelectedTier(tier.value)}
+                  disabled={isBusy}
+                  style={{
+                    padding: '10px 12px',
+                    background: selectedTier === tier.value ? 'rgba(167,139,250,0.2)' : '#111',
+                    border: selectedTier === tier.value ? '1px solid #A78BFA' : '1px solid #2a2a2a',
+                    borderRadius: '8px',
+                    cursor: isBusy ? 'not-allowed' : 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ 
+                    color: selectedTier === tier.value ? '#A78BFA' : '#F5F5F5',
+                    fontWeight: 600, fontSize: '13px', fontFamily: "'Inter', sans-serif",
+                  }}>
+                    {tier.label}
+                  </div>
+                  <div style={{ 
+                    color: '#666', fontSize: '11px', fontFamily: "'Inter', sans-serif",
+                  }}>
+                    {tier.desc}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -478,8 +556,28 @@ const GatewayTester: React.FC = () => {
           {status === 'error' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#f87171', textAlign: 'center', gap: '10px' }}>
               <AlertCircle size={40} style={{ opacity: 0.6 }} />
-              <p style={{ fontWeight: 700, fontFamily: "'Inter', sans-serif" }}>An error occurred.</p>
-              <p style={{ fontSize: '13px', opacity: 0.7 }}>Check terminal logs for details.</p>
+              <p style={{ fontWeight: 700, fontFamily: "'Inter', sans-serif" }}>
+                {velocityCapped ? 'Velocity Cap Exceeded' : 'An error occurred.'}
+              </p>
+              {velocityCapped ? (
+                <p style={{ fontSize: '13px', color: '#e8856a', maxWidth: '300px' }}>
+                  You've reached the $50 USDC / 10 min spending limit. Wait for the window to reset or use a different tier.
+                </p>
+              ) : (
+                <p style={{ fontSize: '13px', opacity: 0.7 }}>Check terminal logs for details.</p>
+              )}
+              {velocityCapped && (
+                <button 
+                  onClick={() => { setVelocityCapped(false); setStatus('idle') }}
+                  style={{
+                    marginTop: '16px', padding: '8px 20px', background: 'rgba(167,139,250,0.2)', 
+                    border: '1px solid #A78BFA', borderRadius: '8px', color: '#A78BFA',
+                    cursor: 'pointer', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                  }}
+                >
+                  Try Again
+                </button>
+              )}
             </div>
           )}
         </div>

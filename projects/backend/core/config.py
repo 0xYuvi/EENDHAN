@@ -1,19 +1,30 @@
 import os
 from dotenv import load_dotenv
 
-# Load variables from the .env file
 load_dotenv()
 
-# Algorand configuration
 ALGOD_ADDRESS = os.environ.get("ALGOD_ADDRESS", "https://testnet-api.algonode.cloud")
 ALGOD_TOKEN = os.environ.get("ALGOD_TOKEN", "")
 
-# Eendhan Smart Contract configuration
-# App Address from TestNet deployment
-EENDHAN_APP_ADDRESS = os.environ.get("EENDHAN_APP_ADDRESS", "TPXCOJSONCOKFZDP76S2XR5HU4SISWOXUXFWRSOT2HL3V7TYRCZD7BXWYY")
+EENDHAN_APP_ADDRESS = os.environ.get(
+    "EENDHAN_APP_ADDRESS", "TPXCOJSONCOKFZDP76S2XR5HU4SISWOXUXFWRSOT2HL3V7TYRCZD7BXWYY"
+)
 
-# USDC Configuration
-USDC_ASSET_ID = int(os.environ.get("USDC_ASSET_ID", "10458941")) # Circle USDC Testnet
+USDC_ASSET_ID = int(os.environ.get("USDC_ASSET_ID", "10458941"))
 
-# Database constants
 DEFAULT_ENDPOINT_ID = "00000000-0000-0000-0000-000000000001"
+
+ESCROW_APP_ID = int(os.environ.get("ESCROW_APP_ID", "0"))
+ESCROW_APP_ADDRESS = os.environ.get("ESCROW_APP_ADDRESS", "")
+
+BACKEND_PRIVATE_KEY = os.environ.get("BACKEND_PRIVATE_KEY", "")
+
+TREASURY_ADDRESS = os.environ.get(
+    "TREASURY_ADDRESS", "TPXCOJSONCOKFZDP76S2XR5HU4SISWOXUXFWRSOT2HL3V7TYRCZD7BXWYY"
+)
+
+MANDATE_APP_ID = int(os.environ.get("MANDATE_APP_ID", "0"))
+MANDATE_APP_ADDRESS = os.environ.get("MANDATE_APP_ADDRESS", "")
+
+VELOCITY_LIMIT = int(os.environ.get("VELOCITY_LIMIT", "50000000"))
+VELOCITY_WINDOW = int(os.environ.get("VELOCITY_WINDOW", "600"))

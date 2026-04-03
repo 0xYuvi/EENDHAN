@@ -76,19 +76,20 @@ const ENDPOINTS: EndpointDef[] = [
       'Manually issue a payment challenge for a registered endpoint. Returns the USDC amount, receiver address, and a session ID for tracking.',
     protected: false,
     request: [
-      { name: 'endpointId', type: 'string (UUID)', required: true, desc: 'UUID of the target endpoint.' },
+      { name: 'endpointId', type: 'string (UUID/Slug)', required: true, desc: 'Unique identifier for the endpoint.' },
       { name: 'consumerWallet', type: 'string', required: true, desc: 'Algorand address of the paying wallet.' },
+      { name: 'tier', type: 'string', required: false, desc: 'Requested pricing tier (e.g. "basic", "pro", "ultra").' },
     ],
     response: [
-      { name: 'x402.conditions.receiver', type: 'string', desc: 'Algorand address to send ALGO to.' },
-      { name: 'x402.conditions.amount', type: 'number', desc: 'Amount in microALGO (e.g. 500000 = 0.5 ALGO).' },
-      { name: 'x402.conditions.currency', type: 'string', desc: '"ALGO" — native Algorand payment, no ASA.' },
-      { name: 'sessionId', type: 'string (UUID)', desc: 'Session ID to include in X-Payment header.' },
+      { name: 'x402.conditions.receiver', type: 'string', desc: 'Algorand address to send payment to.' },
+      { name: 'x402.conditions.amount', type: 'number', desc: 'Amount in microALGO for the selected tier.' },
+      { name: 'x402.conditions.currency', type: 'string', desc: '"ALGO" — native Algorand payment.' },
+      { name: 'sessionId', type: 'string (UUID)', desc: 'Session ID for the payment transaction.' },
     ],
     example: {
-      req: { endpointId: 'uuid-...', consumerWallet: 'ALGO...' },
+      req: { endpointId: 'resume-analyzer', consumerWallet: 'ALGO...', tier: 'pro' },
       res: {
-        x402: { conditions: { receiver: 'O575Y...', amount: 500000, currency: 'ALGO' } },
+        x402: { conditions: { receiver: 'O575Y...', amount: 1500000, currency: 'ALGO' } },
         sessionId: 'uuid-session-id',
       },
     },
@@ -126,19 +127,30 @@ const ENDPOINTS: EndpointDef[] = [
       'Registers a new pay-per-use AI endpoint in the marketplace. The creator sets the price and system prompt — consumers pay per call.',
     protected: false,
     request: [
+      { name: 'endpointId', type: 'string', required: true, desc: 'Unique identifier (slug) for the endpoint.' },
       { name: 'creatorWallet', type: 'string', required: true, desc: 'Algorand address of the endpoint owner.' },
-      { name: 'title', type: 'string', required: true, desc: 'Human-readable endpoint name.' },
-      { name: 'priceAlgo', type: 'number', required: true, desc: 'Price per call in ALGO.' },
-      { name: 'systemPrompt', type: 'string', required: true, desc: 'System instruction for the AI model.' },
-      { name: 'category', type: 'string', required: false, desc: 'Category label (e.g. "resume", "code-review").' },
+      { name: 'title', type: 'string', required: true, desc: 'Display name for the AI service.' },
+      { name: 'description', type: 'string', required: false, desc: 'Detailed description of what the AI does.' },
+      { name: 'priceUsdc', type: 'number', required: true, desc: 'Base price in microALGO.' },
+      { name: 'pricingTiers', type: 'object', required: false, desc: 'JSON of tier names to microALGO amounts.' },
+      { name: 'targetUrl', type: 'string', required: true, desc: 'The upstream AI tool/service URL.' },
+      { name: 'method', type: 'string', required: false, desc: 'HTTP method for upstream (default: POST).' },
     ],
     response: [
       { name: 'status', type: 'string', desc: '"success" on creation.' },
-      { name: 'endpointId', type: 'string (UUID)', desc: 'Unique ID for the new endpoint.' },
+      { name: 'endpointId', type: 'string', desc: 'Unique ID for the new endpoint.' },
     ],
     example: {
-      req: { creatorWallet: 'ALGO...', title: 'Resume Analyzer', priceAlgo: 0.5, systemPrompt: 'You are a brutal recruiter...', category: 'resume' },
-      res: { status: 'success', endpointId: 'uuid-...' },
+      req: { 
+        endpointId: 'custom-ai-tool',
+        creatorWallet: 'ALGO...', 
+        title: 'Logo Designer', 
+        priceUsdc: 500000, 
+        pricingTiers: { "basic": 500000, "pro": 2000000 },
+        targetUrl: 'https://api.openai.com/v1/...',
+        method: 'POST'
+      },
+      res: { status: 'success', endpointId: 'custom-ai-tool' },
     },
   },
   {
@@ -151,12 +163,49 @@ const ENDPOINTS: EndpointDef[] = [
     response: [
       { name: 'endpoints[].endpointId', type: 'string', desc: 'UUID of the endpoint.' },
       { name: 'endpoints[].title', type: 'string', desc: 'Endpoint name.' },
-      { name: 'endpoints[].priceAlgo', type: 'number', desc: 'Price per call in ALGO.' },
+      { name: 'endpoints[].priceUsdc', type: 'number', desc: 'Base price in microALGO.' },
       { name: 'endpoints[].category', type: 'string', desc: 'Category tag.' },
-      { name: 'endpoints[].creatorWallet', type: 'string', desc: 'Creator Algorand address.' },
     ],
     example: {
-      res: { endpoints: [{ endpointId: 'uuid-...', title: 'Resume Analyzer', priceAlgo: 0.5, category: 'resume', creatorWallet: 'ALGO...' }] },
+      res: { endpoints: [{ endpointId: 'resume-analyzer', title: 'Resume Analyzer', priceUsdc: 500000, category: 'resume' }] },
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/agents/{agent_id}/mandate/create',
+    tag: 'Mandates',
+    summary: 'Create Spending Mandate',
+    description: 'Sets spending limits for an AI agent. Requires Pera Connect authentication.',
+    protected: false,
+    request: [
+      { name: 'max_txn', type: 'number', required: false, desc: 'Maximum microALGO per transaction (default: 10M).' },
+      { name: 'max_velocity', type: 'number', required: false, desc: 'Maximum microALGO per 10 min (default: 50M).' },
+      { name: 'max_daily', type: 'number', required: false, desc: 'Maximum microALGO per day (default: 500M).' },
+    ],
+    response: [
+      { name: 'mandateId', type: 'string', desc: 'UUID of the active mandate.' },
+      { name: 'status', type: 'string', desc: '"active"' },
+      { name: 'limits', type: 'object', desc: 'The confirmed spending limits.' },
+    ],
+    example: {
+      req: { max_txn: 5000000, max_velocity: 20000000 },
+      res: { mandateId: 'uuid-...', status: 'active', limits: { maxTxn: 5000000, maxVelocity: 20000000, maxDaily: 500000000 } },
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/agents/{agent_id}/mandates',
+    tag: 'Mandates',
+    summary: 'List Agent Mandates',
+    description: 'Retrieves all active and historical mandates for a specific agent.',
+    protected: false,
+    response: [
+      { name: 'mandates[].mandateId', type: 'string', desc: 'UUID of the mandate.' },
+      { name: 'mandates[].status', type: 'string', desc: '"active" or "revoked".' },
+      { name: 'mandates[].limits', type: 'object', desc: 'Limits configuration.' },
+    ],
+    example: {
+      res: { mandates: [{ mandateId: 'uuid-...', status: 'active', limits: { maxTxn: 10000000 } }] },
     },
   },
 ]
@@ -173,6 +222,7 @@ const TAG_COLORS: Record<string, string> = {
   AI: '#A78BFA',
   x402: '#38bdf8',
   Endpoints: '#fb923c',
+  Mandates: '#f472b6',
 }
 
 const ApiDocs: React.FC = () => {
@@ -465,6 +515,60 @@ const ApiDocs: React.FC = () => {
             </div>
           )
         })}
+      {/* Developer Toolkit */}
+      <div style={{ marginTop: '64px', borderTop: '1px solid #1e1e1e', paddingTop: '40px' }}>
+        <h2 style={{
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: '28px',
+          fontWeight: 700, color: '#F5F5F5', marginBottom: '24px',
+        }}>
+          Developer Toolkit
+        </h2>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+          {/* CLI Guide */}
+          <div style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '24px' }}>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#A78BFA', fontSize: '18px', marginBottom: '16px' }}>
+              EENDHAN CLI
+            </h3>
+            <p style={{ color: '#A0A0A0', fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>
+              The command-line interface for rapid endpoint management and testing.
+            </p>
+            <div style={{ background: '#000', borderRadius: '6px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', color: '#4ade80', marginBottom: '12px' }}>
+              $ sudo npm install -g @eendhan/cli
+            </div>
+            <ul style={{ color: '#666', fontSize: '12px', paddingLeft: '18px', margin: 0, lineHeight: '1.8' }}>
+              <li>Initialize projects with <code>eendhan init</code></li>
+              <li>Call endpoints with <code>eendhan call &lt;id&gt;</code></li>
+              <li>Manage spending mandates directly</li>
+            </ul>
+          </div>
+
+          {/* SDK Guide */}
+          <div style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '24px' }}>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#4ade80', fontSize: '18px', marginBottom: '16px' }}>
+              JavaScript SDK
+            </h3>
+            <p style={{ color: '#A0A0A0', fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>
+              Integrate x402 payments directly into your AI applications.
+            </p>
+            <div style={{ background: '#000', borderRadius: '6px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', color: '#A78BFA', marginBottom: '12px' }}>
+              npm install @eendhan/sdk
+            </div>
+            <pre style={{ color: '#888', fontSize: '11px', margin: 0 }}>
+{`import { EendhanClient } from '@eendhan/sdk';
+
+const client = new EendhanClient({
+  endpointId: 'uuid-123...',
+  tier: 'premium'
+});
+
+const result = await client.call({
+  prompt: 'Hello AI'
+});`}
+            </pre>
+          </div>
+        </div>
+        </div>
       </div>
     </div>
   )

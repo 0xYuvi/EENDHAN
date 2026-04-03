@@ -1,9 +1,13 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallet } from '@txnlab/use-wallet-react'
-import { Wallet, LogOut, CheckCircle, Loader2, Link as LinkIcon, DollarSign, Text, FileText, Server } from 'lucide-react'
+import { Wallet, LogOut, CheckCircle, Loader2, Link as LinkIcon, DollarSign, Text, FileText, Server, Plus, Trash2, Zap } from 'lucide-react'
 
 const BACKEND_URL = 'http://localhost:8000'
+
+const DEFAULT_TIERS = [
+  { name: 'basic', price: 10000 },
+]
 
 const CreatorPortal: React.FC = () => {
   const { activeAddress, wallets, isReady } = useWallet()
@@ -13,8 +17,10 @@ const CreatorPortal: React.FC = () => {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priceUsdc, setPriceUsdc] = useState('1.00')
+  const [pricingTiers, setPricingTiers] = useState(DEFAULT_TIERS)
   const [targetUrl, setTargetUrl] = useState('')
   const [method, setMethod] = useState('POST')
+  const [enableTiers, setEnableTiers] = useState(false)
 
   const [status, setStatus] = useState<'idle' | 'registering' | 'success' | 'error'>('idle')
   const [endpointId, setEndpointId] = useState<string | null>(null)
@@ -56,16 +62,30 @@ const CreatorPortal: React.FC = () => {
     setErrorMessage('')
 
     try {
-      const resp = await fetch(`${BACKEND_URL}/api/endpoints`, {
+      // Build pricing tiers object
+      const tiersObj: Record<string, number> = {}
+      if (enableTiers) {
+        pricingTiers.forEach(tier => {
+          tiersObj[tier.name] = tier.price
+        })
+      } else {
+        tiersObj['basic'] = Math.round(parseFloat(priceUsdc) * 1000000)
+      }
+
+      const endpointId = crypto.randomUUID()
+      
+      const resp = await fetch(`${BACKEND_URL}/api/endpoints/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          endpointId,
           title,
           description,
-          price_usdc: parseFloat(priceUsdc),
-          target_url: targetUrl,
+          priceUsdc: parseFloat(priceUsdc),
+          pricingTiers: tiersObj,
+          targetUrl,
           method,
-          creator_wallet: activeAddress,
+          creatorWallet: activeAddress,
         })
       })
 
@@ -75,12 +95,27 @@ const CreatorPortal: React.FC = () => {
       }
 
       const data = await resp.json()
-      setEndpointId(data.id)
+      setEndpointId(data.endpointId || endpointId)
       setStatus('success')
     } catch (e: any) {
       setErrorMessage(e.message)
       setStatus('error')
     }
+  }
+
+  const addTier = () => {
+    const newTier = { name: `tier${pricingTiers.length + 1}`, price: 10000 }
+    setPricingTiers([...pricingTiers, newTier])
+  }
+
+  const removeTier = (index: number) => {
+    setPricingTiers(pricingTiers.filter((_, i) => i !== index))
+  }
+
+  const updateTier = (index: number, field: 'name' | 'price', value: string | number) => {
+    const updated = [...pricingTiers]
+    updated[index] = { ...updated[index], [field]: field === 'price' ? Math.round(parseFloat(String(value || '0')) * 1000000) : value }
+    setPricingTiers(updated)
   }
 
   const copyToClipboard = () => {
@@ -302,6 +337,70 @@ const CreatorPortal: React.FC = () => {
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          {/* Enable Multi-Tier Pricing */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={enableTiers} 
+                onChange={e => setEnableTiers(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: '#A78BFA' }}
+              />
+              <Zap size={14} />
+              Enable Custom Pricing Tiers
+            </label>
+            <p style={{ color: '#666', fontSize: '12px', marginTop: '4px', marginBottom: '12px' }}>
+              Create custom tiers like "fast", "deep-research", "code-generation" with your own prices
+            </p>
+            {enableTiers && (
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {pricingTiers.map((tier, index) => (
+                  <div key={index} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={tier.name}
+                      onChange={e => updateTier(index, 'name', e.target.value)}
+                      placeholder="e.g., fast, premium, unlimited"
+                      style={{ ...inputStyle, width: '180px', padding: '10px 12px' }}
+                    />
+                    <span style={{ color: '#666' }}>{'→'}</span>
+                    <input
+                      type="number"
+                      value={(tier.price / 1000000).toFixed(4)}
+                      onChange={e => updateTier(index, 'price', e.target.value)}
+                      placeholder="0.0001"
+                      step="0.0001"
+                      style={{ ...inputStyle, width: '100px', padding: '10px 12px' }}
+                    />
+                    <span style={{ color: '#A0A0A0', fontSize: '13px' }}>USDC</span>
+                    {pricingTiers.length > 1 && (
+                      <button 
+                        onClick={() => removeTier(index)}
+                        style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: '8px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button 
+                  onClick={() => {
+                    const newName = pricingTiers.length === 1 ? 'premium' : `tier${pricingTiers.length + 1}`;
+                    setPricingTiers([...pricingTiers, { name: newName, price: 10000 }]);
+                  }}
+                  style={{ 
+                    display: 'flex', alignItems: 'center', gap: '6px', 
+                    background: 'transparent', border: '1px dashed #333', 
+                    color: '#A78BFA', padding: '10px 16px', borderRadius: '8px',
+                    cursor: 'pointer', fontSize: '13px', width: 'fit-content'
+                  }}
+                >
+                  <Plus size={14} /> Add Custom Tier
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ position: 'relative', marginBottom: '24px' }}>

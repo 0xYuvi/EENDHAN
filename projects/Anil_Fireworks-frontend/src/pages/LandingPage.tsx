@@ -1,10 +1,11 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Zap, ShieldCheck, Gem, Bot, ArrowRight, ChevronRight } from 'lucide-react'
+import { Zap, ShieldCheck, Gem, Bot, ArrowRight, ChevronRight, Clock, Gauge } from 'lucide-react'
 import GatewayTester from '../components/GatewayTester'
 import CreatorPortal from '../components/CreatorPortal'
 import ApiDocs from '../components/ApiDocs'
 import { GlobalTouchEffect } from '../components/TouchEffect'
+import TextShuffle from '../components/TextShuffle'
 
 /* ═══════════════════════════════════════════════════════════════
    Animation variants
@@ -364,7 +365,7 @@ const LandingPage: React.FC = () => {
             variants={fadeUp}
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 'clamp(2.5rem, 7vw, 5.5rem)',
+              fontSize: 'clamp(2.5rem, 7vw, 4.5rem)',
               fontWeight: 700,
               lineHeight: 1.05,
               letterSpacing: '-0.03em',
@@ -373,9 +374,13 @@ const LandingPage: React.FC = () => {
               margin: '0 auto 24px',
             }}
           >
-            PAY ONCE.
+            <TextShuffle text="Pay." duration={0.95} />
             <br />
-            <span style={{ color: '#A78BFA' }}>GET THE AI.</span>
+            <TextShuffle text="Verify." duration={0.95} />
+            <br />
+            <span style={{ color: '#A78BFA' }}>
+              <TextShuffle text="Execute." duration={0.95} />
+            </span>
           </motion.h1>
 
           {/* Subheading */}
@@ -809,18 +814,6 @@ const LandingPage: React.FC = () => {
         <CreatorPortal />
       </section>
 
-      {/* ── GATEWAY SANDBOX ──────────────────────────────────────── */}
-      <section
-        id="sandbox"
-        style={{
-          padding: '100px 5vw',
-          maxWidth: '1280px',
-          margin: '0 auto',
-        }}
-      >
-        <GatewayTester />
-      </section>
-
       {/* ── API DOCS ─────────────────────────────────────────── */}
       <section
         id="docs"
@@ -832,6 +825,113 @@ const LandingPage: React.FC = () => {
         }}
       >
         <ApiDocs />
+      </section>
+
+      {/* ── RATE LIMITS ───────────────────────────────────────────── */}
+      <section
+        id="rate-limits"
+        style={{
+          padding: '80px 5vw',
+          maxWidth: '1280px',
+          margin: '0 auto',
+          background: '#0a0a0a',
+          borderTop: '1px solid #1a1a1a',
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          style={{ textAlign: 'center', marginBottom: '48px' }}
+        >
+          <span
+            style={{
+              display: 'inline-block',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: '#A78BFA',
+              marginBottom: '16px',
+            }}
+          >
+            RATE LIMITS & QUOTAS
+          </span>
+          <h2
+            style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)',
+              fontWeight: 700,
+              color: '#F5F5F5',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Built-in abuse protection
+          </h2>
+        </motion.div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '24px',
+          }}
+        >
+          {[
+            { icon: Clock, title: 'Request Rate', value: '100 req/min', desc: 'Per IP (sliding window)' },
+            { icon: Zap, title: 'Burst Cap', value: '5 exec/10s', desc: 'Per agent (prevents spikes)' },
+            { icon: Gauge, title: 'Velocity Cap', value: '$50/10min', desc: 'Per agent (configurable)' },
+            { icon: ShieldCheck, title: 'Nonce Window', value: '60 seconds', desc: 'Replay attack protection' },
+          ].map((item, i) => (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              style={{
+                background: '#111',
+                border: '1px solid #2a2a2a',
+                borderRadius: '16px',
+                padding: '24px',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  background: 'rgba(167,139,250,0.15)',
+                  borderRadius: '12px',
+                  padding: '12px',
+                  width: '48px',
+                  height: '48px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}
+              >
+                <item.icon size={24} color="#A78BFA" />
+              </div>
+              <h3 style={{ color: '#F5F5F5', fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
+                {item.title}
+              </h3>
+              <div style={{ color: '#A78BFA', fontFamily: "'Space Grotesk', sans-serif", fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>
+                {item.value}
+              </div>
+              <p style={{ color: '#666', fontSize: '13px', fontFamily: "'Inter', sans-serif" }}>
+                {item.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: '32px', color: '#666', fontSize: '13px', fontFamily: "'Inter', sans-serif" }}>
+          <p>Rate limit breaches return HTTP 429. Velocity cap breaches return HTTP 402.</p>
+          <p style={{ marginTop: '8px' }}>
+            <span style={{ color: '#e8856a' }}>velocityCapped: true</span> in response body
+          </p>
+        </div>
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────────── */}

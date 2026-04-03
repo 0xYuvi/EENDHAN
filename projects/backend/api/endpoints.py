@@ -4,49 +4,65 @@ from db.supabase_client import supabase
 
 router = APIRouter(prefix="/api/endpoints", tags=["endpoints"])
 
+
 @router.post("/create")
 async def create_endpoint(req: CreateEndpointReq):
     try:
-        data, count = supabase.table("endpoints").insert({
-            "id": req.endpointId,
-            "creator_wallet": req.creatorWallet,
-            "title": req.title,
-            "description": req.description,
-            "price_usdc": req.priceUsdc,
-            "target_url": req.targetUrl,
-            "method": req.method
-        }).execute()
-        
+        data, count = (
+            supabase.table("endpoints")
+            .insert(
+                {
+                    "id": req.endpointId,
+                    "creator_wallet": req.creatorWallet,
+                    "title": req.title,
+                    "description": req.description,
+                    "price_usdc": req.priceUsdc,
+                    "pricing_tiers": req.pricingTiers,
+                    "target_url": req.targetUrl,
+                    "method": req.method,
+                }
+            )
+            .execute()
+        )
+
         if len(data[1]) == 0:
             raise Exception("No data returned from DB")
-            
-        endpoint_id = data[1][0]['id']
+
+        endpoint_id = data[1][0]["id"]
         return {
             "status": "success",
             "endpointId": endpoint_id,
-            "message": "Endpoint created successfully"
+            "message": "Endpoint created successfully",
         }
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+
 
 @router.get("")
 async def list_endpoints():
     try:
         data, count = supabase.table("endpoints").select("*").execute()
-        
+
         # Format snake_case to camelCase mapping for the API contract
         formatted_endpoints = []
         for row in data[1]:
-            formatted_endpoints.append({
-                "endpointId": row["id"],
-                "creatorWallet": row.get("creator_wallet"),
-                "title": row.get("title"),
-                "description": row.get("description"),
-                "priceUsdc": float(row.get("price_usdc", 0.0)),
-                "targetUrl": row.get("target_url"),
-                "method": row.get("method")
-            })
-            
+            formatted_endpoints.append(
+                {
+                    "endpointId": row["id"],
+                    "creatorWallet": row.get("creator_wallet"),
+                    "title": row.get("title"),
+                    "description": row.get("description"),
+                    "priceUsdc": float(row.get("price_usdc", 0.0)),
+                    "pricingTiers": row.get("pricing_tiers"),
+                    "targetUrl": row.get("target_url"),
+                    "method": row.get("method"),
+                }
+            )
+
         return {"endpoints": formatted_endpoints}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
