@@ -4,9 +4,10 @@ import uuid
 
 from algosdk import encoding
 from algosdk.v2client.algod import AlgodClient
+from core.config import USDC_ASSET_ID
 
-# 1 ALGO = 1_000_000 microALGO
-PAYMENT_AMOUNT_ALGO = 0.5  # price in ALGO
+# USDC has 6 decimals, like ALGO microALGO
+# 1 USDC = 1_000_000 micro-USDC units
 ALGORAND_TESTNET = "testnet"
 
 
@@ -15,24 +16,34 @@ class X402Validator:
         self.algod = algorand_client
         self.receiver_address = receiver_address
 
-    def issue_challenge(self, price_algo: float, endpoint: str, expires_at: int, last_round: int) -> dict[str, Any]:
+    def issue_challenge(
+        self,
+        price_algo: float,  # kept as kwarg name for backwards compat, now treats as USDC amount
+        endpoint: str,
+        expires_at: int,
+        last_round: int,
+        receiver_address: str = None,
+    ) -> dict[str, Any]:
         """
-        Generates a 402 Required response with Algorand TestNet details and session metadata.
+        Generates a 402 Payment Required response specifying a USDC ASA transfer.
         """
-        amount_micro_algo = int(price_algo * 1_000_000)
+        # Treat the price value as USDC (6 decimals)
+        amount_micro_usdc = int(price_algo * 1_000_000)
+        receiver = receiver_address or self.receiver_address
 
         return {
             "error": "Payment Required",
             "status": 402,
-            "sessionId": str(uuid.uuid4()), # Need a valid UUID so PostgreSQL doesn't crash if inserted
+            "sessionId": str(uuid.uuid4()),
             "expiresAt": expires_at,
             "lastRound": last_round,
             "x402": {
                 "network": "testnet",
                 "conditions": {
-                    "receiver": self.receiver_address,
-                    "amount": amount_micro_algo,   # in microALGO
-                    "currency": "ALGO",
+                    "receiver": receiver,
+                    "amount": amount_micro_usdc,   # micro-USDC units
+                    "currency": "USDC",
+                    "assetId": USDC_ASSET_ID,       # Algorand Testnet USDC ASA ID
                     "description": f"Payment for {endpoint} (Expires in 60s)",
                 },
                 "handshake": {
@@ -44,15 +55,16 @@ class X402Validator:
         }
 
     def verify_payment(
-        self, tx64: str, session_id: str, supabase_client: Any
+        self, tx64: str, session_id: str, supabase_client: Any, receiver_address: str = None
     ) -> dict[str, Any]:
         """
-        Verifies the base64-encoded ALGO payment transaction from X-PAYMENT header.
+        Verifies the base64-encoded USDC ASA payment transaction from X-PAYMENT header.
 
         Args:
             tx64: Base64-encoded signed transaction
             session_id: Unique session identifier for this payment
             supabase_client: Supabase client instance
+            receiver_address: Dynamic receiver address override
 
         Returns:
             Verification result dict with success status and tx details
@@ -60,18 +72,27 @@ class X402Validator:
         try:
             signed_tx = encoding.msgpack_decode(tx64)
             tx = signed_tx.transaction
+            receiver = receiver_address or self.receiver_address
 
-            # Expect native ALGO payment (type "pay"), not an ASA transfer
-            if tx.type != "pay":
+            # Must be an ASA transfer (axfer), NOT a native pay transaction
+            if tx.type != "axfer":
                 return {
                     "success": False,
-                    "error": f"Invalid transaction type: {tx.type}. Expected native ALGO payment (pay).",
+                    "error": f"Invalid transaction type: '{tx.type}'. Expected USDC ASA transfer (axfer).",
                 }
 
-            if str(tx.receiver) != self.receiver_address:
+            # Verify the correct ASA is being transferred (prevent fake ASA attacks)
+            if tx.index != USDC_ASSET_ID:
                 return {
                     "success": False,
-                    "error": f"Invalid receiver. Payment was sent to {tx.receiver}.",
+                    "error": f"Wrong asset. Expected USDC (ASA ID {USDC_ASSET_ID}), got ASA ID {tx.index}.",
+                }
+
+            # Verify receiver
+            if str(tx.receiver) != receiver:
+                return {
+                    "success": False,
+                    "error": f"Invalid receiver. Payment was sent to {tx.receiver}, expected {receiver}.",
                 }
 
             txid = tx.get_txid()
@@ -107,13 +128,17 @@ class X402Validator:
             except Exception as db_err:
                 print(f"[WARN] DB update failed (non-fatal): {db_err}")
 
+            # amount is in micro-USDC (6 decimals)
+            amount_human = f"{tx.amount / 1_000_000:.6f} USDC"
+
             return {
                 "success": True,
                 "txid": txid,
                 "sender": str(tx.sender),
-                "amount": tx.amt,
-                "amount_human": f"{tx.amt / 1_000_000:.6f} ALGO",
-                "currency": "ALGO",
+                "amount": tx.amount,
+                "amount_human": amount_human,
+                "currency": "USDC",
+                "asset_id": USDC_ASSET_ID,
                 "session_id": session_id,
             }
 

@@ -8,11 +8,13 @@ router = APIRouter(prefix="/api/endpoints", tags=["endpoints"])
 async def create_endpoint(req: CreateEndpointReq):
     try:
         data, count = supabase.table("endpoints").insert({
+            "id": req.endpointId,
             "creator_wallet": req.creatorWallet,
             "title": req.title,
-            "price_algo": req.priceAlgo,
-            "system_prompt": req.systemPrompt,
-            "category": req.category
+            "description": req.description,
+            "price_usdc": req.priceUsdc,
+            "target_url": req.targetUrl,
+            "method": req.method
         }).execute()
         
         if len(data[1]) == 0:
@@ -37,10 +39,12 @@ async def list_endpoints():
         for row in data[1]:
             formatted_endpoints.append({
                 "endpointId": row["id"],
-                "creatorWallet": row["creator_wallet"],
-                "title": row["title"],
-                "priceAlgo": float(row["price_algo"]),
-                "category": row["category"]
+                "creatorWallet": row.get("creator_wallet"),
+                "title": row.get("title"),
+                "description": row.get("description"),
+                "priceUsdc": float(row.get("price_usdc", 0.0)),
+                "targetUrl": row.get("target_url"),
+                "method": row.get("method")
             })
             
         return {"endpoints": formatted_endpoints}

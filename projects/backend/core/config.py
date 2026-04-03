@@ -12,5 +12,8 @@ ALGOD_TOKEN = os.environ.get("ALGOD_TOKEN", "")
 # App Address from TestNet deployment
 EENDHAN_APP_ADDRESS = os.environ.get("EENDHAN_APP_ADDRESS", "TPXCOJSONCOKFZDP76S2XR5HU4SISWOXUXFWRSOT2HL3V7TYRCZD7BXWYY")
 
+# USDC Configuration
+USDC_ASSET_ID = int(os.environ.get("USDC_ASSET_ID", "10458941")) # Circle USDC Testnet
+
 # Database constants
 DEFAULT_ENDPOINT_ID = "00000000-0000-0000-0000-000000000001"

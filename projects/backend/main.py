@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from api import endpoints, x402, ai
+from api import endpoints, x402, execute
 
 app = FastAPI(title="AlgoGate AI Backend", version="1.0.0")
 
@@ -17,7 +17,7 @@ app.add_middleware(
 # Include Routers
 app.include_router(endpoints.router)
 app.include_router(x402.router)
-app.include_router(ai.router)
+app.include_router(execute.router)
 
 @app.get("/")
 async def root():

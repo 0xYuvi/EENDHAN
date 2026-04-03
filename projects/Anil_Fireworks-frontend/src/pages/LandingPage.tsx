@@ -1,7 +1,8 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Zap, ShieldCheck, Gem, Bot, ArrowRight, ChevronRight } from 'lucide-react'
-import ResumeReviewer from '../components/ResumeReviewer'
+import GatewayTester from '../components/GatewayTester'
+import CreatorPortal from '../components/CreatorPortal'
 import ApiDocs from '../components/ApiDocs'
 import { GlobalTouchEffect } from '../components/TouchEffect'
 
@@ -114,7 +115,7 @@ const CodeBlock: React.FC = () => {
 
       <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         <span style={{ color: muted }}>POST</span>{' '}
-        <span style={{ color: white }}>/api/x402/challenge</span>
+        <span style={{ color: white }}>/api/execute/agent-xyz</span>
         {'\n\n'}
         <span style={{ color: muted }}>←</span>{' '}
         <span style={{ color: orange }}>402 Payment Required</span>
@@ -132,7 +133,7 @@ const CodeBlock: React.FC = () => {
         <span style={{ color: white }}>"30s"</span>
         {'\n\n'}
         <span style={{ color: muted }}>POST</span>{' '}
-        <span style={{ color: white }}>/api/x402/verify</span>
+        <span style={{ color: white }}>/api/execute/agent-xyz</span>
         {'\n'}
         <span style={{ color: purple }}>{'   '}txHash:</span>{' '}
         <span style={{ color: white }}>"ALGO7xK..."</span>
@@ -401,7 +402,7 @@ const LandingPage: React.FC = () => {
             style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}
           >
             <a
-              href="#features"
+              href="#sandbox"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -423,7 +424,7 @@ const LandingPage: React.FC = () => {
                 e.currentTarget.style.transform = 'translateY(0)'
               }}
             >
-              Explore Endpoints
+              Test API Proxy
               <ArrowRight size={16} />
             </a>
             <a
@@ -515,8 +516,7 @@ const LandingPage: React.FC = () => {
               }}
             >
               AlgoGate implements the HTTP 402 Payment Required standard to create a seamless,
-              trustless payment flow between AI consumers and providers. No API keys, no
-              subscriptions — just cryptographic proof of payment.
+              trustless payment proxy between AI consumers and AI creators. Call any registered endpoint dynamically.
             </p>
           </motion.div>
 
@@ -613,6 +613,18 @@ const LandingPage: React.FC = () => {
             <FeatureCard key={card.title} icon={card.icon} title={card.title} desc={card.desc} index={i} />
           ))}
         </div>
+      </section>
+
+      {/* ── GATEWAY SANDBOX ──────────────────────────────────────── */}
+      <section
+        id="sandbox"
+        style={{
+          padding: '100px 5vw',
+          maxWidth: '1280px',
+          margin: '0 auto',
+        }}
+      >
+        <GatewayTester />
       </section>
 
       {/* ── STATS STRIP ──────────────────────────────────────── */}
@@ -785,16 +797,28 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── RESUME REVIEWER ──────────────────────────────────────── */}
+      {/* ── CREATOR REGISTRATION ─────────────────────────────────── */}
       <section
-        id="get-started"
+        id="register"
+        style={{
+          padding: '100px 5vw 0',
+          maxWidth: '1280px',
+          margin: '0 auto',
+        }}
+      >
+        <CreatorPortal />
+      </section>
+
+      {/* ── GATEWAY SANDBOX ──────────────────────────────────────── */}
+      <section
+        id="sandbox"
         style={{
           padding: '100px 5vw',
           maxWidth: '1280px',
           margin: '0 auto',
         }}
       >
-        <ResumeReviewer />
+        <GatewayTester />
       </section>
 
       {/* ── API DOCS ─────────────────────────────────────────── */}
