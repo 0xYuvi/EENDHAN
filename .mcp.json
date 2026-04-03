@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "vibekit": {
+      "command": "npx",
+      "args": ["-y", "@txnlab/vibekit-mcp", "stdio"],
+      "env": {}
+    }
+  }
+}
