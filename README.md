@@ -59,4 +59,37 @@ The frontend starter also provides an example of interactions with your EendhanC
 
 ## Next Steps
 
-You can take this project and customize it to build your own decentralized applications on Algorand. Make sure to understand how to use AlgoKit and how to write smart contracts for Algorand before you start.
+## Project EENDHAN: Decentralized AI Agency
+
+EENDHAN is a decentralized AI agency infrastructure built on Algorand, enabling seamless, pay-per-use AI services through the **x402 Payment Protocol**.
+
+### 🛠 Core Components
+
+*   **[EENDHAN SDK](packages/sdk/README.md)**: A TypeScript/JavaScript SDK for integrating DeAI payments into any web or node.js application.
+*   **[EENDHAN CLI](packages/cli/README.md)**: A powerful command-line tool for managing endpoints, creating mandates, and making manual AI calls.
+*   **Universal AI Proxy**: A smart reverse-proxy that handles x402 verification and supports both JSON-based text APIs and binary image generation tools (e.g., Pollinations AI).
+*   **AI Agentic Wallet**: Support for spending mandates that allow AI agents to make autonomous payments within user-defined limits.
+
+### 💳 x402 Payment Protocol
+
+x402 is a specialized HTTP-based payment protocol that utilizes Algorand (USDC) for real-time API monetization. It features:
+*   **Dynamic Tiering**: Creators can set multiple pricing levels (e.g., basic, premium).
+*   **Velocity Capping**: Automatic 10-minute spending limits ($50/10min) to prevent wallet drain.
+*   **Binary Support**: The gateway handles raw image blobs, JPEGs, and text responses transparently.
+
+### 🚀 Getting Started with EENDHAN
+
+1.  **Initialize CLI**:
+    ```bash
+    npx @eendhan/cli init
+    ```
+2.  **Make a Test Call**:
+    ```bash
+    npx @eendhan/cli call <endpoint-id> --payload '{"prompt": "Hello DeAI"}'
+    ```
+3.  **Integrate SDK**:
+    ```bash
+    npm install @eendhan/sdk
+    ```
+
+For full documentation on specific features, refer to the [SDK README](packages/sdk/README.md) and [CLI README](packages/cli/README.md).
