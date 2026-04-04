@@ -74,7 +74,8 @@ const CreatorPortal: React.FC = () => {
 
       const endpointId = crypto.randomUUID()
       
-      const resp = await fetch(`${BACKEND_URL}/api/endpoints/create`, {
+      const baseUrl = BACKEND_URL.replace(/\/$/, '')
+      const resp = await fetch(`${baseUrl}/api/endpoints/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

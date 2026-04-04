@@ -43,7 +43,8 @@ const GatewayTester: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const resp = await fetch(`${BACKEND_URL}/api/endpoints/${endpointId}`)
+        const baseUrl = BACKEND_URL.replace(/\/$/, '')
+        const resp = await fetch(`${baseUrl}/api/endpoints/${endpointId}`)
         if (!resp.ok) return
         const data = await resp.json()
         
@@ -272,13 +273,14 @@ const GatewayTester: React.FC = () => {
       } catch (broadcastErr: any) {
         throw new Error(`Broadcast failed: ${broadcastErr?.message || broadcastErr}`)
       }
-      addLog(`Tx broadcast: ${txid}`)
+            addLog(`Tx broadcast: ${txid}`)
 
       // Encode signed txn as base64 for X-Payment header
       const signedTxnBase64 = Buffer.from(signedTxn).toString('base64')
 
       addLog('Submitting payment proof to proxy gateway...')
-      const verifyResp = await fetch(`${BACKEND_URL}/api/execute/${endpointId}`, {
+      const baseUrl = BACKEND_URL.replace(/\/$/, '')
+      const verifyResp = await fetch(`${baseUrl}/api/execute/${endpointId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
