@@ -66,3 +66,28 @@ async def list_endpoints():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
+
+@router.get("/{endpoint_id}")
+async def get_endpoint(endpoint_id: str):
+    try:
+        data = supabase.table("endpoints").select("*").eq("id", endpoint_id).execute()
+        if not data.data or len(data.data) == 0:
+            raise HTTPException(status_code=404, detail="Endpoint not found")
+            
+        row = data.data[0]
+        return {
+            "endpointId": row["id"],
+            "creatorWallet": row.get("creator_wallet"),
+            "title": row.get("title"),
+            "description": row.get("description"),
+            "priceUsdc": float(row.get("price_usdc", 0.0)),
+            "pricingTiers": row.get("pricing_tiers"),
+            "targetUrl": row.get("target_url"),
+            "method": row.get("method"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )

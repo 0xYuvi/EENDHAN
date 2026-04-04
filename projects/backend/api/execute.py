@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import httpx
 from api.auth import x402_payment_required
 from core.config import EENDHAN_APP_ADDRESS
@@ -38,14 +38,19 @@ async def execute_dynamic_proxy(
     body = await request.body()
     body_str = body.decode("utf-8", errors="ignore") if body else ""
 
-    headers = dict(request.headers)
-    headers.pop("host", None)
-    headers.pop("content-length", None)
-
+    # Sanitize headers
+    headers = {}
+    allowed_headers = ["content-type", "accept", "user-agent", "authorization"]
+    for k, v in request.headers.items():
+        if k.lower() in allowed_headers:
+            headers[k] = v
+            
+    # Add AlgoGate proofs
     headers["X-AlgoGate-Verified"] = "true"
     headers["X-AlgoGate-TxHash"] = payment_info.get("txid", "")
     headers["X-AlgoGate-Amount"] = str(payment_info.get("amount", ""))
     headers["X-AlgoGate-Consumer"] = payment_info.get("sender", "")
+    headers["User-Agent"] = "AlgoGate-Proxy/1.0"
 
     if execution_id:
         try:
@@ -55,14 +60,43 @@ async def execute_dynamic_proxy(
         except:
             pass
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    import json as json_lib
+
+    # For GET-based upstreams: append prompt to URL, don't send a body
+    upstream_body: bytes | None = body
+    upstream_params = dict(request.query_params)
+
+    if method == "GET" and body:
+        try:
+            parsed = json_lib.loads(body)
+            # Try common prompt field names — prompt, query, text, q, input
+            for key in ["prompt", "query", "text", "q", "input"]:
+                if key in parsed:
+                    prompt_value = str(parsed[key])
+                    # Append to URL path if it ends with /
+                    if target_url.rstrip("/").endswith("/prompt") or target_url.endswith("/"):
+                        target_url = target_url.rstrip("/") + "/" + prompt_value
+                    else:
+                        upstream_params["prompt"] = prompt_value
+                    upstream_body = None
+                    addLog_value = prompt_value
+                    break
+            else:
+                # No known prompt key; fall back to using all fields as query params
+                for k, v in parsed.items():
+                    upstream_params[k] = str(v)
+                upstream_body = None
+        except Exception:
+            upstream_body = None  # GET can't have a body
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
         try:
             target_response = await client.request(
                 method=method,
                 url=target_url,
                 headers=headers,
-                content=body,
-                params=request.query_params,
+                content=upstream_body if method != "GET" else None,
+                params=upstream_params,
             )
         except httpx.RequestError as e:
             if execution_id:
@@ -82,7 +116,8 @@ async def execute_dynamic_proxy(
                 content={
                     "status": "failed",
                     "refundEligible": True,
-                    "reason": "Upstream API error",
+                    "reason": "Upstream connection failed",
+                    "detail": str(e)
                 },
             )
 
@@ -105,7 +140,8 @@ async def execute_dynamic_proxy(
             content={
                 "status": "failed",
                 "refundEligible": True,
-                "reason": "Upstream API error",
+                "reason": f"Upstream returned {target_response.status_code}",
+                "detail": target_response.text[:200]
             },
         )
 
@@ -121,15 +157,20 @@ async def execute_dynamic_proxy(
             supabase.table("backend_executions").update(
                 {
                     "status": "completed",
-                    "response_payload": resp_json
-                    if resp_json
-                    else {"raw_body": target_response.text},
+                    "response_payload": resp_json if resp_json else {"raw_body": "binary/text format"},
                 }
             ).eq("execution_id", execution_id).execute()
         except:
             pass
 
-    return JSONResponse(
-        content=resp_json if resp_json else target_response.text,
+    if resp_json is not None:
+        return JSONResponse(
+            content=resp_json,
+            status_code=target_response.status_code,
+        )
+
+    return Response(
+        content=target_response.content,
         status_code=target_response.status_code,
+        media_type=target_response.headers.get("content-type", "text/plain"),
     )

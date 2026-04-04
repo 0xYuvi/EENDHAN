@@ -44,7 +44,7 @@ async def x402_payment_required(
             raise HTTPException(status_code=404, detail="Endpoint not found")
 
         endpoint_data = endpoint_res.data
-        pricing_tiers = endpoint_data.get("pricing_tiers", {})
+        pricing_tiers = endpoint_data.get("pricing_tiers") or {}
 
         # Determine tier from header, default to "basic"
         requested_tier = x_ai_tier or "basic"

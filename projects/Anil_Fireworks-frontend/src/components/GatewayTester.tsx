@@ -23,8 +23,9 @@ const GatewayTester: React.FC = () => {
   const [endpointId, setEndpointId] = useState('123e4567-e89b-12d3-a456-426614174000')
   const [jsonPayload, setJsonPayload] = useState('{\n  "query": "Hello, AI!"\n}')
   const [selectedTier, setSelectedTier] = useState('basic')
+  const [dynamicTiers, setDynamicTiers] = useState([{ value: 'basic', label: 'Basic', desc: 'Standard usage' }])
   
-  const [status, setStatus] = useState<'idle' | 'analyzing' | 'payment_required' | 'paying' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'payment_required' | 'paying' | 'generating' | 'success' | 'error'>('idle')
   const [log, setLog] = useState<string[]>([])
   const [result, setResult] = useState<any>(null)
   const [connectingWallet, setConnectingWallet] = useState(false)
@@ -34,7 +35,40 @@ const GatewayTester: React.FC = () => {
 
   const { activeAddress, wallets, signTransactions, isReady } = useWallet()
 
-  // Timer Effect
+  // Fetch Endpoint Tiers — debounced so it only fires when user stops typing
+  React.useEffect(() => {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!endpointId || !UUID_REGEX.test(endpointId)) return
+    let isMounted = true
+
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await fetch(`${BACKEND_URL}/api/endpoints/${endpointId}`)
+        if (!resp.ok) return
+        const data = await resp.json()
+        
+        if (isMounted) {
+          const tiersObj = data.pricingTiers
+          if (tiersObj && Object.keys(tiersObj).length > 0) {
+            const loadedTiers = Object.entries(tiersObj).map(([k, v]: [string, any]) => ({
+              value: k, label: k.charAt(0).toUpperCase() + k.slice(1), desc: `${(v / 1000000).toFixed(4)} USDC`
+            }))
+            setDynamicTiers(loadedTiers)
+            setSelectedTier(loadedTiers[0].value)
+          } else {
+            setDynamicTiers([{ value: 'basic', label: 'Basic', desc: `${(data.priceUsdc || 0).toFixed(4)} USDC base price` }])
+            setSelectedTier('basic')
+          }
+        }
+      } catch (e) {
+        // Silently ignore
+      }
+    }, 600)
+    
+    return () => { isMounted = false; clearTimeout(timer) }
+  }, [endpointId])
+
+  // Timer only counts down during payment phase — stops once verified
   React.useEffect(() => {
     let timer: NodeJS.Timeout
     if (status === 'payment_required' || status === 'paying') {
@@ -71,6 +105,36 @@ const GatewayTester: React.FC = () => {
   const handleDisconnect = async () => {
     const connected = wallets?.find(w => w.isConnected)
     if (connected) await connected.disconnect()
+  }
+
+  const handleUsdcOptIn = async () => {
+    if (!activeAddress) return
+    setConnectingWallet(true)
+    try {
+      addLog('Opting in to TestNet USDC (Asset 10458941)...')
+      const suggestedParams = await algodClient.getTransactionParams().do()
+      
+      const optInTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+        sender: activeAddress,
+        receiver: activeAddress,
+        assetIndex: USDC_ASSET_ID,
+        amount: 0,
+        suggestedParams,
+      })
+
+      const signedTxns = await signTransactions([optInTxn])
+      if (!signedTxns[0]) throw new Error('Transaction signing rejected')
+      
+      const { txid } = await algodClient.sendRawTransaction(signedTxns[0]).do() as any
+      addLog(`Opt-in broadcasted: ${txid}. Waiting for confirmation...`)
+      
+      // wait for confirmation
+      addLog('USDC Opt-in successful!')
+    } catch (e: any) {
+      addLog(`Opt-in failed: ${e.message}`)
+    } finally {
+      setConnectingWallet(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -140,7 +204,16 @@ const GatewayTester: React.FC = () => {
         setStatus('error')
         addLog('Rate limited. Please wait 60 seconds and retry.')
       } else if (resp.ok) {
-        const data = await resp.json()
+        const contentType = resp.headers.get("content-type") || ""
+        let data: any
+        if (contentType.includes("application/json")) {
+          data = await resp.json()
+        } else if (contentType.startsWith("image/")) {
+          const blob = await resp.blob()
+          data = { imageUrl: URL.createObjectURL(blob), note: "Received Image via Proxy" }
+        } else {
+          data = { text: await resp.text() }
+        }
         setStatus('success')
         setResult(data)
       } else {
@@ -178,12 +251,27 @@ const GatewayTester: React.FC = () => {
       })
 
       addLog(`Requesting wallet signature from ${activeAddress}...`)
-      const signedTxns = await signTransactions([ptxn])
-      const signedTxn = signedTxns[0]
-      if (!signedTxn) throw new Error('Transaction signing was rejected.')
+      let signedTxn: Uint8Array
+      try {
+        const signedTxns = await signTransactions([ptxn])
+        if (!signedTxns[0]) throw new Error('Signing returned empty result.')
+        signedTxn = signedTxns[0]
+      } catch (walletErr: any) {
+        const msg = walletErr?.message || String(walletErr)
+        if (msg.includes('rejected') || msg.includes('Confirmation Failed') || msg.includes('4100')) {
+          throw new Error('Transaction rejected in wallet. Please try again.')
+        }
+        throw new Error(`Wallet error: ${msg}`)
+      }
 
       addLog('Signed! Broadcasting to Algorand TestNet...')
-      const { txid } = (await algodClient.sendRawTransaction(signedTxn).do()) as { txid: string }
+      let txid: string
+      try {
+        const broadcastResult = await algodClient.sendRawTransaction(signedTxn).do() as any
+        txid = broadcastResult.txid
+      } catch (broadcastErr: any) {
+        throw new Error(`Broadcast failed: ${broadcastErr?.message || broadcastErr}`)
+      }
       addLog(`Tx broadcast: ${txid}`)
 
       // Encode signed txn as base64 for X-Payment header
@@ -200,13 +288,28 @@ const GatewayTester: React.FC = () => {
       })
 
       if (verifyResp.ok) {
-        const resultData = await verifyResp.json()
-        addLog('Payment verified! Proxy response received.')
+        // Timer stops here — transition to AI generation phase
+        setStatus('generating')
+        addLog('Payment verified ✓ Fetching AI response...')
+        
+        const contentType = verifyResp.headers.get("content-type") || ""
+        let resultData: any
+        if (contentType.includes("application/json")) {
+          resultData = await verifyResp.json()
+        } else if (contentType.startsWith("image/")) {
+          const blob = await verifyResp.blob()
+          resultData = { imageUrl: URL.createObjectURL(blob), note: "Image generated via AlgoGate proxy" }
+        } else {
+          resultData = { text: await verifyResp.text() }
+        }
+        addLog('Response received!')
         setStatus('success')
         setResult(resultData)
       } else {
         const err = await verifyResp.json()
-        throw new Error(`Verification failed: ${err.detail || verifyResp.statusText}`)
+        const detail = err.detail || err.message || err.error || ''
+        const reason = detail ? `: ${detail}` : ` (${verifyResp.statusText})`
+        throw new Error(`Verification failed${reason}`)
       }
 
     } catch (e: any) {
@@ -216,7 +319,7 @@ const GatewayTester: React.FC = () => {
     }
   }
 
-  const isBusy = status === 'analyzing' || status === 'paying'
+  const isBusy = status === 'analyzing' || status === 'paying' || status === 'generating'
 
   // Dynamic cost display
   const targetCostUsdc = challenge ? ((challenge.x402?.conditions?.amount || 0) / 1000000).toFixed(2) : "Dynamic"
@@ -285,6 +388,18 @@ const GatewayTester: React.FC = () => {
               }}
             >
               <LogOut size={14} /> Disconnect
+            </button>
+            <button
+              onClick={handleUsdcOptIn}
+              disabled={connectingWallet}
+              style={{
+                background: 'rgba(56, 189, 248, 0.1)', border: '1px solid #38bdf8',
+                color: '#38bdf8', borderRadius: '8px', padding: '6px 14px',
+                cursor: 'pointer', fontSize: '13px', fontFamily: "'Inter', sans-serif",
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <CheckCircle size={14} /> Opt-in to USDC
             </button>
           </>
         ) : (
@@ -360,7 +475,7 @@ const GatewayTester: React.FC = () => {
               Pricing Tier
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '8px' }}>
-              {TIER_OPTIONS.map(tier => (
+              {dynamicTiers.map(tier => (
                 <button
                   key={tier.value}
                   onClick={() => setSelectedTier(tier.value)}
@@ -396,12 +511,13 @@ const GatewayTester: React.FC = () => {
               color: '#A78BFA', fontFamily: "'Inter', sans-serif",
               fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
             }}>
-              JSON Request Payload
+              Request Payload (JSON)
             </label>
             <textarea
               value={jsonPayload}
               onChange={e => setJsonPayload(e.target.value)}
               disabled={isBusy}
+              placeholder={'// JSON for POST APIs:\n{ "query": "Hello AI" }\n\n// For GET/Image APIs:\n{ "prompt": "horse running" }'}
               style={{
                 width: '100%', height: '140px', boxSizing: 'border-box',
                 background: '#111', color: '#F5F5F5', border: '1px solid #2a2a2a',
@@ -479,9 +595,36 @@ const GatewayTester: React.FC = () => {
           {status === 'analyzing' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#A78BFA', textAlign: 'center', gap: '12px' }}>
               <Loader2 size={36} style={{ animation: 'spin 1s linear infinite' }} />
-              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '14px' }}>
-                Contacting AlgoGate...
-              </p>
+              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '14px' }}>Contacting AlgoGate...</p>
+            </div>
+          )}
+
+          {status === 'generating' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '20px' }}>
+              <div style={{ position: 'relative' }}>
+                <Bot size={48} style={{ color: '#A78BFA', opacity: 0.8 }} />
+                <div style={{
+                  position: 'absolute', top: '-4px', right: '-4px',
+                  width: '14px', height: '14px', borderRadius: '50%',
+                  background: '#4ade80', boxShadow: '0 0 8px #4ade80', animation: 'pulse 1.5s ease-in-out infinite'
+                }} />
+              </div>
+              <div>
+                <p style={{ color: '#F5F5F5', fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", fontSize: '16px', marginBottom: '6px' }}>
+                  Payment Verified ✓
+                </p>
+                <p style={{ color: '#A0A0A0', fontFamily: "'Inter', sans-serif", fontSize: '13px' }}>
+                  AI is generating your response...
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: '8px', height: '8px', borderRadius: '50%', background: '#A78BFA',
+                    animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
+                  }} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -498,6 +641,7 @@ const GatewayTester: React.FC = () => {
                     cx="40" cy="40" r="36"
                     fill="none" stroke="#e8856a" strokeWidth="4"
                     strokeDasharray="226.19"
+                    initial={{ strokeDashoffset: 226.19 }}
                     animate={{ strokeDashoffset: 226.19 - (226.19 * timeLeft) / 60 }}
                     transition={{ duration: 1, ease: "linear" }}
                     strokeLinecap="round"
@@ -545,9 +689,22 @@ const GatewayTester: React.FC = () => {
                 </div>
 
                 <div style={{ background: '#000', padding: '16px', borderRadius: '12px', border: '1px solid #2a2a2a' }}>
-                    <pre style={{ color: '#F5F5F5', fontSize: '13px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace' }}>
+                    {result?.imageUrl ? (
+                      <div>
+                        <p style={{ color: '#4ade80', fontSize: '13px', marginBottom: '12px', fontFamily: "'Inter', sans-serif" }}>
+                          🖼 Image generated via AlgoGate proxy
+                        </p>
+                        <img src={result.imageUrl} alt="AI Result" style={{ maxWidth: '100%', borderRadius: '8px', display: 'block' }} />
+                      </div>
+                    ) : result?.text ? (
+                      <pre style={{ color: '#F5F5F5', fontSize: '13px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace', margin: 0 }}>
+                        {result.text}
+                      </pre>
+                    ) : (
+                      <pre style={{ color: '#F5F5F5', fontSize: '13px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace', margin: 0 }}>
                         {JSON.stringify(result, null, 2)}
-                    </pre>
+                      </pre>
+                    )}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -559,12 +716,18 @@ const GatewayTester: React.FC = () => {
               <p style={{ fontWeight: 700, fontFamily: "'Inter', sans-serif" }}>
                 {velocityCapped ? 'Velocity Cap Exceeded' : 'An error occurred.'}
               </p>
-              {velocityCapped ? (
-                <p style={{ fontSize: '13px', color: '#e8856a', maxWidth: '300px' }}>
-                  You've reached the $50 USDC / 10 min spending limit. Wait for the window to reset or use a different tier.
-                </p>
-              ) : (
-                <p style={{ fontSize: '13px', opacity: 0.7 }}>Check terminal logs for details.</p>
+              <p style={{ fontSize: '13px', opacity: 0.7 }}>Check terminal logs for details.</p>
+              {!velocityCapped && (
+                <button
+                  onClick={() => { setStatus('idle'); setLog([]); setResult(null); }}
+                  style={{
+                    marginTop: '8px', padding: '8px 20px', background: 'rgba(167,139,250,0.2)',
+                    border: '1px solid #A78BFA', borderRadius: '8px', color: '#A78BFA',
+                    cursor: 'pointer', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                  }}
+                >
+                  Try Again
+                </button>
               )}
               {velocityCapped && (
                 <button 
@@ -585,6 +748,8 @@ const GatewayTester: React.FC = () => {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         @media (max-width: 900px) {
           .resume-grid { grid-templateColumns: 1fr !important; gap: 24px !important; }
           .resume-reviewer-container { padding: 20px !important; }
