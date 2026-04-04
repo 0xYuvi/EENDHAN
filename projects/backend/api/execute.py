@@ -61,25 +61,41 @@ async def execute_dynamic_proxy(
             pass
 
     import json as json_lib
+    import random
+    import time
 
     # For GET-based upstreams: append prompt to URL, don't send a body
     upstream_body: bytes | None = body
     upstream_params = dict(request.query_params)
+    
+    # Global cache busting
+    upstream_params["_t"] = str(int(time.time() * 1000))
 
     if method == "GET" and body:
         try:
             parsed = json_lib.loads(body)
+            
+            # Auto-seed for Pollinations if not provided to prevent duplicate images
+            if "pollinations.ai" in target_url and "seed" not in parsed:
+                parsed["seed"] = random.randint(1, 999999999)
+
             # Try common prompt field names — prompt, query, text, q, input
             for key in ["prompt", "query", "text", "q", "input"]:
                 if key in parsed:
                     prompt_value = str(parsed[key])
                     # Append to URL path if it ends with /
                     if target_url.rstrip("/").endswith("/prompt") or target_url.endswith("/"):
-                        target_url = target_url.rstrip("/") + "/" + prompt_value
+                        url_prompt = prompt_value.replace(" ", "%20")
+                        target_url = target_url.rstrip("/") + "/" + url_prompt
                     else:
                         upstream_params["prompt"] = prompt_value
+                    
+                    # Carry over other fields as params (like seed)
+                    for k, v in parsed.items():
+                        if k != key:
+                            upstream_params[k] = str(v)
+                            
                     upstream_body = None
-                    addLog_value = prompt_value
                     break
             else:
                 # No known prompt key; fall back to using all fields as query params

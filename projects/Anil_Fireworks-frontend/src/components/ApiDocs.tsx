@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
 
 /* ── Types ── */
 interface Field {
@@ -244,10 +246,10 @@ const ApiDocs: React.FC = () => {
             fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em',
             padding: '4px 10px', borderRadius: '20px', fontFamily: "'Inter', sans-serif",
           }}>
-            LIVE · localhost:8000
+            LIVE · {BACKEND_URL.replace('http://', '').replace('https://', '')}
           </span>
           <a
-            href="http://localhost:8000/docs"
+            href={`${BACKEND_URL}/docs`}
             target="_blank"
             rel="noreferrer"
             style={{ color: '#A78BFA', fontSize: '12px', fontFamily: "'Inter', sans-serif", textDecoration: 'none' }}
@@ -262,7 +264,7 @@ const ApiDocs: React.FC = () => {
           API Reference
         </h2>
         <p style={{ color: '#A0A0A0', fontFamily: "'Inter', sans-serif", fontSize: '15px', lineHeight: '1.7' }}>
-          AlgoGate AI backend runs on <code style={{ color: '#A78BFA', background: '#1a1a1a', padding: '2px 6px', borderRadius: '4px' }}>http://localhost:8000</code>.
+          AlgoGate AI backend runs on <code style={{ color: '#A78BFA', background: '#1a1a1a', padding: '2px 6px', borderRadius: '4px' }}>{BACKEND_URL}</code>.
           All AI endpoints enforce the <strong style={{ color: '#F5F5F5' }}>x402 Payment Protocol</strong> — pay per call with USDC on Algorand TestNet.
         </p>
       </div>
@@ -274,7 +276,7 @@ const ApiDocs: React.FC = () => {
         alignItems: 'center', gap: '12px', fontFamily: 'monospace', fontSize: '13px',
       }}>
         <span style={{ color: '#666' }}>BASE URL</span>
-        <span style={{ color: '#A78BFA' }}>http://localhost:8000</span>
+        <span style={{ color: '#A78BFA' }}>{BACKEND_URL}</span>
         <span style={{ marginLeft: 'auto', color: '#666', fontSize: '11px' }}>Content-Type: application/json</span>
       </div>
 

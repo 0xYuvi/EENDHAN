@@ -9,7 +9,7 @@ const algodServer = 'https://testnet-api.algonode.cloud'
 const algodPort = ''
 const algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort)
 
-const BACKEND_URL = 'http://localhost:8000'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 const USDC_ASSET_ID = 10458941
 
 const TIER_OPTIONS = [
