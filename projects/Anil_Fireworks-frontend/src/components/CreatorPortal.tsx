@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useWallet } from '@txnlab/use-wallet-react'
 import { Wallet, LogOut, CheckCircle, Loader2, Link as LinkIcon, DollarSign, Text, FileText, Server, Plus, Trash2, Zap } from 'lucide-react'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const RAW_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = RAW_BACKEND_URL.replace(/\/$/, '')
 
 const DEFAULT_TIERS = [
   { name: 'basic', price: 10000 },

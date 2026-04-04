@@ -9,7 +9,8 @@ const algodServer = 'https://testnet-api.algonode.cloud'
 const algodPort = ''
 const algodClient = new algosdk.Algodv2(algodToken, algodServer, algodPort)
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const RAW_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = RAW_BACKEND_URL.replace(/\/$/, '')
 const USDC_ASSET_ID = 10458941
 
 const TIER_OPTIONS = [
@@ -43,8 +44,7 @@ const GatewayTester: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const baseUrl = BACKEND_URL.replace(/\/$/, '')
-        const resp = await fetch(`${baseUrl}/api/endpoints/${endpointId}`)
+        const resp = await fetch(`${BACKEND_URL}/api/endpoints/${endpointId}`)
         if (!resp.ok) return
         const data = await resp.json()
         
@@ -279,8 +279,7 @@ const GatewayTester: React.FC = () => {
       const signedTxnBase64 = Buffer.from(signedTxn).toString('base64')
 
       addLog('Submitting payment proof to proxy gateway...')
-      const baseUrl = BACKEND_URL.replace(/\/$/, '')
-      const verifyResp = await fetch(`${baseUrl}/api/execute/${endpointId}`, {
+      const verifyResp = await fetch(`${BACKEND_URL}/api/execute/${endpointId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
