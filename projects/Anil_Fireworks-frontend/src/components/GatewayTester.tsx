@@ -22,7 +22,7 @@ const TIER_OPTIONS = [
 
 const GatewayTester: React.FC = () => {
   const [endpointId, setEndpointId] = useState('123e4567-e89b-12d3-a456-426614174000')
-  const [jsonPayload, setJsonPayload] = useState('{\n  "query": "Hello, AI!"\n}')
+  const [jsonPayload, setJsonPayload] = useState('{\n  "query": "robot-1"\n}')
   const [selectedTier, setSelectedTier] = useState('basic')
   const [dynamicTiers, setDynamicTiers] = useState([{ value: 'basic', label: 'Basic', desc: 'Standard usage' }])
   
@@ -323,7 +323,7 @@ const GatewayTester: React.FC = () => {
   const isBusy = status === 'analyzing' || status === 'paying' || status === 'generating'
 
   // Dynamic cost display
-  const targetCostUsdc = challenge ? ((challenge.x402?.conditions?.amount || 0) / 1000000).toFixed(2) : "Dynamic"
+  const targetCostUsdc = challenge ? ((challenge.x402?.conditions?.amount || 0) / 1000000).toFixed(3) : "0.005"
 
   return (
     <div className="resume-reviewer-container" style={{
@@ -344,8 +344,8 @@ const GatewayTester: React.FC = () => {
           AlgoGate Proxy Sandbox
         </h2>
         <p style={{ color: '#A0A0A0', fontFamily: "'Inter', sans-serif", fontSize: '14px' }}>
-          Test any registered endpoint · Tier: <strong style={{ color: '#A78BFA' }}>{selectedTier}</strong> · 
-          Cost: <strong style={{ color: '#A78BFA' }}>{targetCostUsdc} USDC</strong> · 
+          Test the x402 AI Proxy with **Robohash** · Tier: <strong style={{ color: '#A78BFA' }}>{selectedTier}</strong> ·
+          Cost: <strong style={{ color: '#A78BFA' }}>{targetCostUsdc} USDC</strong> ·
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             <Gauge size={12} /> $50/10min velocity cap
           </span>

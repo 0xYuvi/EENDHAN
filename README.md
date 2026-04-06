@@ -1,9 +1,12 @@
-Team - EENDHAN
-Tanishq mandolkar
-Yuvraj kakade
-Devavrat dhaygude
-Anish maniyar
+# 🚀 Team EENDHAN
 
+### Core Team Members:
+*   **Tanishq Mandolkar**
+*   **Yuvraj Kakade**
+*   **Devavrat Dhaygude**
+*   **Anish Maniyar**
+
+---
 
 # EENDHAN
 
@@ -56,6 +59,65 @@ Refer to the [Anil_Fireworks-contracts](projects/Anil_Fireworks-contracts/README
 When you compile and generate smart contract artifacts, your frontend component will automatically generate typescript application clients from smart contract artifacts and move them to `frontend/src/contracts` folder, see [`generate:app-clients` in package.json](projects/Anil_Fireworks-frontend/package.json). Afterwards, you are free to import and use them in your frontend application.
 
 The frontend starter also provides an example of interactions with your EendhanClient in [`AppCalls.tsx`](projects/Anil_Fireworks-frontend/src/components/AppCalls.tsx) component by default.
+
+## 🚀 Running the Project
+
+Follow these steps to run the EENDHAN decentralized AI agency components locally or on TestNet.
+
+### 1. Initial Setup
+Before running any component, ensure you have bootstrapped the entire project:
+```bash
+algokit project bootstrap all
+```
+
+### 2. Blockchain / Smart Contracts
+You can run the smart contracts either on a local network (LocalNet) or on the Algorand TestNet.
+
+#### **LocalNet (Development)**
+1.  **Start LocalNet**: Ensure Docker is running and start the local network:
+    ```bash
+    algokit localnet start
+    ```
+2.  **Deploy Contracts**: Deploy the EENDHAN smart contracts to LocalNet:
+    ```bash
+    cd projects/Anil_Fireworks-contracts && algokit project deploy localnet
+    ```
+
+#### **TestNet (Staging)**
+1.  **Deploy to TestNet**: Use the following command to deploy directly to TestNet:
+    ```bash
+    cd projects/Anil_Fireworks-contracts && algokit project deploy testnet
+    ```
+    *(Note: Ensure your DEPLOYER account is funded on TestNet.)*
+
+---
+
+### 3. Backend API
+The backend handles the x402 payment validation and AI agent logic. It requires a `.env` file with Supabase and AI provider keys.
+
+1.  **Environment Sync**: Ensure `projects/backend/.env` is configured (see `.env.example`).
+2.  **Run Service**: From the root directory:
+    ```bash
+    cd projects/backend && poetry run uvicorn main:app --reload
+    ```
+    The API will be available at `http://localhost:8000`. You can view the docs at `/docs`.
+
+---
+
+### 4. Frontend Application
+The frontend is a React application that interacts with the smart contracts and backend.
+
+1.  **Link Contracts**: (Automatically handled by `npm run dev`)
+2.  **Run Dev Server**:
+    ```bash
+    cd projects/Anil_Fireworks-frontend && npm run dev
+    ```
+    The application will be available at `http://localhost:5173`.
+
+> [!TIP]
+> To switch between **LocalNet** and **TestNet** on the frontend, update the environment variables in `projects/Anil_Fireworks-frontend/.env` as described in `.env.template`.
+
+---
 
 ## Next Steps
 

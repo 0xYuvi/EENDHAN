@@ -95,8 +95,7 @@ const Navbar: React.FC = () => {
         ))}
         <button
           onClick={() => {
-            // TODO: Integrate demo functionality
-            console.log('Demo clicked')
+            document.getElementById('sandbox')?.scrollIntoView({ behavior: 'smooth' })
           }}
           style={{
             fontFamily: "'Inter', sans-serif",

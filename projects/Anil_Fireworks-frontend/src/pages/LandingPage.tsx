@@ -167,11 +167,11 @@ const FeatureCard: React.FC<{
     const rect = cardRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    setMousePos({ 
-      x, 
-      y, 
-      cX: x - (rect.width / 2), 
-      cY: y - (rect.height / 2) 
+    setMousePos({
+      x,
+      y,
+      cX: x - (rect.width / 2),
+      cY: y - (rect.height / 2)
     })
   }
 
@@ -201,15 +201,15 @@ const FeatureCard: React.FC<{
         borderRadius: '16px',
         padding: '32px',
         cursor: 'default',
-        transform: hovered 
-          ? `translateY(-4px) perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)` 
+        transform: hovered
+          ? `translateY(-4px) perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`
           : 'translateY(0) perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)',
         transition: hovered ? 'box-shadow 0.25s ease' : 'transform 0.4s ease-out, box-shadow 0.25s ease, border 0.3s ease',
         boxShadow: hovered ? '0 15px 40px rgba(167, 139, 250, 0.1)' : 'none',
       }}
     >
       {/* Outer Border Glow */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
@@ -223,7 +223,7 @@ const FeatureCard: React.FC<{
         }}
       />
       {/* Inner dark background mask */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: 1, left: 1, right: 1, bottom: 1,
@@ -234,7 +234,7 @@ const FeatureCard: React.FC<{
         }}
       />
       {/* Magic Bento Glow Spotlight */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
@@ -246,9 +246,9 @@ const FeatureCard: React.FC<{
         }}
       />
 
-      <div 
-        style={{ 
-          position: 'relative', 
+      <div
+        style={{
+          position: 'relative',
           zIndex: 1,
           transform: `translate(${tx}px, ${ty}px)`,
           transition: hovered ? 'none' : 'transform 0.4s ease-out'
@@ -396,7 +396,7 @@ const LandingPage: React.FC = () => {
               margin: '0 auto 40px',
             }}
           >
-            x402-powered pay-per-use access for premium AI APIs — built on Algorand.
+            x402 powered pay per use access for premium AI APIs built on Algorand.
             No subscriptions. No API keys. Just pay and unlock.
           </motion.p>
 
