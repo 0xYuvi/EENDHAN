@@ -35,6 +35,13 @@ const GatewayTester: React.FC = () => {
   const [velocityCapped, setVelocityCapped] = useState(false)
 
   const { activeAddress, wallets, signTransactions, isReady } = useWallet()
+  
+  // Ensure we start in a 'Connect a Wallet' state for the demo
+  React.useEffect(() => {
+    if (activeAddress && wallets) {
+        wallets.find(w => w.isConnected)?.disconnect()
+    }
+  }, [])
 
   // Fetch Endpoint Tiers — debounced so it only fires when user stops typing
   React.useEffect(() => {

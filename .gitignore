@@ -168,3 +168,10 @@ cython_debug/
 # NPM
 node_modules
 
+# Non-important files
+AGENTS.md
+developer_prompts.md
+implementation_plan.md
+register_robohash.py
+upsert_robohash.py
+
