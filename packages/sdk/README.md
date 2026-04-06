@@ -1,6 +1,6 @@
-# EENDHAN SDK - Complete Guide
+# EENDHAN SDK
 
-The JavaScript/TypeScript SDK for integrating pay-per-use AI APIs into your applications.
+The TypeScript/JavaScript SDK for integrating pay-per-use AI APIs powered by Algorand into your applications.
 
 ## Table of Contents
 1. [Installation](#installation)
@@ -12,6 +12,7 @@ The JavaScript/TypeScript SDK for integrating pay-per-use AI APIs into your appl
 7. [React Integration](#react-integration)
 8. [Node.js Integration](#nodejs-integration)
 9. [Examples](#examples)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -24,21 +25,9 @@ The JavaScript/TypeScript SDK for integrating pay-per-use AI APIs into your appl
 ### Install SDK
 
 ```bash
-# npm
 npm install @eendhan/sdk
 
-# yarn
-yarn add @eendhan/sdk
-
-# pnpm
-pnpm add @eendhan/sdk
-```
-
-### Peer Dependencies
-
-If using with `@txnlab/use-wallet-react`:
-
-```bash
+# Peer dependencies
 npm install algosdk @txnlab/use-wallet-react
 ```
 
@@ -46,213 +35,180 @@ npm install algosdk @txnlab/use-wallet-react
 
 ## Quick Start
 
-### 1. Import and Initialize
-
 ```typescript
 import { EendhanClient } from '@eendhan/sdk';
+import { useWallet } from '@txnlab/use-wallet-react';
+
+// Inside a React component
+const { activeAddress, signTransactions } = useWallet();
 
 const client = new EendhanClient({
-  endpointId: 'your-endpoint-id',
-});
-```
-
-### 2. Make API Calls
-
-The SDK automatically handles the 402 payment flow:
-
-```typescript
-const response = await client.call({
-  query: 'Hello, AI!',
+  endpointId: '123e4567-e89b-12d3-a456-426614174000',
+  senderAddress: activeAddress!,
+  signer: signTransactions,
+  tier: 'basic',
 });
 
-console.log(response);
+const result = await client.call({ query: 'Hello AI!' });
+
+// result.data     → JSON object, text, or image URL
+// result.isImage  → true if response is an image
+// result.txid     → Algorand transaction ID of the payment
 ```
 
-That's it! The SDK will:
-- Detect 402 responses
-- Prompt wallet for payment signature
-- Submit payment proof
-- Return the AI response
+The SDK automatically handles the complete x402 flow:
+1. Sends initial request → receives 402 challenge
+2. Builds USDC asset transfer transaction
+3. Signs via wallet → broadcasts to Algorand TestNet
+4. Submits payment proof → returns proxied AI response
 
 ---
 
 ## Configuration
 
-### Full Configuration Options
-
 ```typescript
 const client = new EendhanClient({
   // Required
   endpointId: '123e4567-e89b-12d3-a456-426614174000',
-  
+  senderAddress: 'YOUR_ALGORAND_ADDRESS',
+  signer: signTransactions,
+
   // Optional
-  backendUrl: 'https://api.algogate.ai',  // Default: http://localhost:8000
-  tier: 'premium',                         // Your custom tier name
-  slippageBips: 50,                       // 5% slippage (default: 50 = 0.5%)
-  timeout: 30000,                          // Request timeout in ms
-  
-  // For custom wallet integration
-  signer: async (txns: Uint8Array[]) => {
-    // Return signed transactions
-  },
+  backendUrl: 'https://your-backend.onrender.com', // Default: http://localhost:8000
+  tier: 'premium',                                  // Default: basic
 });
 ```
 
-### Configuration Table
-
 | Option | Type | Required | Default | Description |
-|--------|------|----------|---------|--------------|
-| `endpointId` | string | Yes | - | Your registered endpoint ID |
-| `backendUrl` | string | No | `http://localhost:8000` | Backend API URL |
-| `tier` | string | No | `basic` | Pricing tier name |
-| `signer` | function | No | - | Custom transaction signer |
-| `slippageBips` | number | No | 50 | Slippage tolerance (basis points) |
-| `timeout` | number | No | 30000 | Request timeout in milliseconds |
+|--------|------|----------|---------|-------------|
+| `endpointId` | `string` | Yes | — | UUID from Creator Portal or CLI |
+| `senderAddress` | `string` | Yes | — | Your Algorand wallet address |
+| `signer` | `function` | Yes | — | Transaction signer (compatible with `@txnlab/use-wallet-react`) |
+| `backendUrl` | `string` | No | `http://localhost:8000` | Backend API URL |
+| `tier` | `string` | No | `basic` | Pricing tier name |
 
 ---
 
 ## Payment Flow
 
-Here's what happens under the hood:
-
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client   │ ──► │   Backend   │ ──► │   Wallet    │ ──► │   Backend   │
-│   Request  │     │  402 Response│    │   Signs     │     │  Verifies   │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐
+│  Client   │ ───► │  Backend  │ ───► │  Wallet   │ ───► │  Backend  │
+│  Request  │      │ 402 + x402│      │  Signs    │      │ Verifies  │
+│           │      │ Challenge │      │  USDC Txn │      │ + Proxies │
+└──────────┘      └──────────┘      └──────────┘      └──────────┘
+     │                                                        │
+     │                    AI Response                         │
+     ◄────────────────────────────────────────────────────────┘
 ```
 
-### Step-by-Step Flow
+### Step-by-Step
 
-1. **Request**: Send API call with `X-AI-Tier` header
-2. **Challenge**: If payment required, backend returns 402 with:
-   - `sessionId` - Payment session
-   - `amount` - Cost in micro-USDC
-   - `receiver` - Destination wallet
-   - `expiresAt` - Session expiration
-3. **Sign**: SDK builds USDC asset transfer transaction
-4. **Verify**: Wallet signs, SDK submits payment proof
-5. **Response**: Backend verifies and returns AI result
+1. **Request** — `POST /api/execute/:id` with `X-AI-Tier` header
+2. **402 Challenge** — Backend returns session ID, cost (micro-USDC), receiver address, expiry
+3. **Build Transaction** — SDK creates USDC asset transfer (`assetIndex: 10458941`)
+4. **Sign** — Wallet signs the transaction (Pera/Defly popup)
+5. **Broadcast** — SDK sends signed transaction to Algorand TestNet
+6. **Verify** — SDK resubmits request with `X-Payment: tx64=<base64>, session=<id>` header
+7. **Response** — Backend verifies payment, proxies to upstream, returns result
 
-### Manual Payment Flow
-
-If you need more control:
-
-```typescript
-// 1. Get payment challenge
-const challenge = await client.getChallenge();
-
-if (challenge.status === 402) {
-  // 2. Build and sign transaction
-  const signedTxn = await client.signPayment(challenge);
-  
-  // 3. Submit proof
-  const result = await client.verifyPayment(signedTxn, challenge.sessionId);
-}
-```
+> This flow is identical to the frontend's GatewayTester component.
 
 ---
 
 ## API Reference
 
-### Constructor
+### `new EendhanClient(config)`
+
+Create a new client instance.
+
+### `client.call(payload): Promise<CallResult>`
+
+Make a pay-per-use API call. Handles the full x402 payment flow automatically.
 
 ```typescript
-new EendhanClient(config: ClientConfig)
+const result = await client.call({ query: 'robot-1' });
 ```
 
-### Methods
-
-#### `client.call(payload)`
-
-Make an API call with automatic payment handling.
+**Returns `CallResult`:**
 
 ```typescript
-const result = await client.call({
-  query: 'Your prompt here',
-  // ... any other fields
-});
-```
-
-**Parameters:**
-- `payload` (any): Request body sent to the API
-
-**Returns:** `Promise<any>` - API response
-
-**Throws:** `EendhanError` on failure
-
----
-
-#### `client.getPricing()`
-
-Get pricing information for the endpoint.
-
-```typescript
-const pricing = await client.getPricing();
-
-console.log(pricing);
-// {
-//   tiers: { basic: 10000, premium: 50000 },
-//   defaultTier: 'basic'
-// }
-```
-
-**Returns:** `Promise<PricingInfo>`
-
----
-
-#### `client.getVelocityStatus()`
-
-Check current velocity cap usage.
-
-```typescript
-const status = await client.getVelocityStatus();
-
-console.log(status);
-// {
-//   currentSpend: 1000000,
-//   limit: 50000000,  // $50 in micro-USDC
-//   windowSeconds: 600
-// }
-```
-
-**Returns:** `VelocityStatus`
-
----
-
-#### `client.getChallenge()`
-
-Manually get a payment challenge without making the full request.
-
-```typescript
-const challenge = await client.getChallenge({
-  query: 'test',
-});
-
-if (challenge.status === 402) {
-  // Handle payment
+interface CallResult {
+  data: any;          // Response data (JSON, text object, or image URL object)
+  contentType: string; // Content-Type header from upstream
+  isImage: boolean;    // true if response was an image
+  txid?: string;       // Algorand transaction ID (if payment was made)
 }
 ```
 
+**Response handling by content type:**
+
+| Upstream Content-Type | `result.data` | `result.isImage` |
+|---|---|---|
+| `application/json` | Parsed JSON object | `false` |
+| `image/*` | `{ imageUrl: "blob:...", note: "..." }` | `true` |
+| `text/*` or other | `{ text: "..." }` | `false` |
+
 ---
 
-#### `client.signPayment(challenge)`
+### `client.setTier(tier: string): void`
 
-Sign a payment transaction from a challenge.
+Change the pricing tier for subsequent calls.
 
 ```typescript
-const signedTxn = await client.signPayment(challenge);
-// Returns base64 encoded signed transaction
+client.setTier('premium');
 ```
 
 ---
 
-#### `client.verifyPayment(signedTxn, sessionId)`
+### `client.getEndpointInfo(): Promise<EndpointInfo>`
 
-Submit payment proof.
+Fetch endpoint details from the backend (`GET /api/endpoints/:id`).
 
 ```typescript
-const result = await client.verifyPayment(signedTxn, sessionId);
+const info = await client.getEndpointInfo();
+// {
+//   endpointId: "123e4567-...",
+//   title: "PFP Generator",
+//   priceUsdc: 0.01,
+//   pricingTiers: { basic: 10000, premium: 50000 },
+//   targetUrl: "https://robohash.org/",
+//   method: "GET",
+//   creatorWallet: "TPXCOJ..."
+// }
+```
+
+---
+
+### `client.getPricing(): Promise<PricingInfo>`
+
+Fetch pricing tiers for this endpoint.
+
+```typescript
+const pricing = await client.getPricing();
+// {
+//   tiers: [
+//     { name: "basic", priceMicroUsdc: 10000, priceUsdc: 0.01 },
+//     { name: "premium", priceMicroUsdc: 50000, priceUsdc: 0.05 }
+//   ],
+//   defaultTier: "basic"
+// }
+```
+
+---
+
+### `client.getVelocityStatus(): VelocityStatus`
+
+Get current client-side velocity cap tracking.
+
+```typescript
+const status = client.getVelocityStatus();
+// {
+//   currentSpend: 10000,       // micro-USDC spent in current window
+//   limit: 50000000,           // $50 limit in micro-USDC
+//   windowSeconds: 600,        // 10-minute window
+//   remaining: 49990000        // micro-USDC remaining
+// }
 ```
 
 ---
@@ -262,22 +218,35 @@ const result = await client.verifyPayment(signedTxn, sessionId);
 ```typescript
 interface ClientConfig {
   endpointId: string;
+  senderAddress: string;
+  signer: (txns: Transaction[]) => Promise<(Uint8Array | null)[]>;
   backendUrl?: string;
   tier?: string;
-  signer?: (txns: Uint8Array[]) => Promise<Uint8Array[]>;
-  slippageBips?: number;
-  timeout?: number;
+}
+
+interface CallResult {
+  data: any;
+  contentType: string;
+  isImage: boolean;
+  txid?: string;
+}
+
+interface PricingTier {
+  name: string;
+  priceMicroUsdc: number;  // 1 USDC = 1,000,000
+  priceUsdc: number;
 }
 
 interface PricingInfo {
-  tiers: Record<string, number>;  // tier name -> micro-USDC
+  tiers: PricingTier[];
   defaultTier: string;
 }
 
 interface VelocityStatus {
-  currentSpend: number;   // micro-USDC spent
-  limit: number;          // micro-USDC limit
-  windowSeconds: number;  // remaining time
+  currentSpend: number;
+  limit: number;
+  windowSeconds: number;
+  remaining: number;
 }
 
 enum ErrorCode {
@@ -286,6 +255,7 @@ enum ErrorCode {
   RATE_LIMITED = 'RATE_LIMITED',
   SESSION_EXPIRED = 'SESSION_EXPIRED',
   VERIFICATION_FAILED = 'VERIFICATION_FAILED',
+  UPSTREAM_FAILED = 'UPSTREAM_FAILED',
   UNKNOWN = 'UNKNOWN',
 }
 ```
@@ -297,15 +267,16 @@ enum ErrorCode {
 ### Error Codes
 
 | Code | HTTP Status | Description | Recovery |
-|------|-------------|--------------|-----------|
-| `PAYMENT_REQUIRED` | 402 | Payment needed | Complete payment flow |
-| `VELOCITY_CAPPED` | 402 | $50/10min exceeded | Wait for window reset |
+|------|-------------|-------------|----------|
+| `PAYMENT_REQUIRED` | 402 | Payment needed | SDK handles automatically |
+| `VELOCITY_CAPPED` | 402 | $50/10min limit exceeded | Wait for window reset |
 | `RATE_LIMITED` | 429 | 100 req/min exceeded | Back off 60s and retry |
-| `SESSION_EXPIRED` | 402 | 60s nonce expired | Re-request challenge |
+| `SESSION_EXPIRED` | 402 | 60s nonce expired | Re-request (automatic) |
 | `VERIFICATION_FAILED` | 400 | Payment invalid | Retry payment |
-| `UNKNOWN` | - | Other errors | Check message |
+| `UPSTREAM_FAILED` | 502 | Target API failed | Check endpoint URL |
+| `UNKNOWN` | — | Other errors | Check message |
 
-### Handling Errors
+### Usage
 
 ```typescript
 import { EendhanClient, EendhanError, ErrorCode } from '@eendhan/sdk';
@@ -316,21 +287,15 @@ try {
   if (error instanceof EendhanError) {
     switch (error.code) {
       case ErrorCode.VELOCITY_CAPPED:
-        // Show user they've hit the limit
-        console.log('Spending limit reached. Wait and retry.');
-        // Show when they can retry
-        const waitTime = 600 - elapsedSeconds;
+        console.log('Spending limit reached. Wait 10 minutes.');
         break;
-        
       case ErrorCode.RATE_LIMITED:
-        // Implement exponential backoff
-        await sleep(60000);
+        console.log('Too many requests. Waiting 60s...');
+        await new Promise(r => setTimeout(r, 60000));
         break;
-        
-      case ErrorCode.SESSION_EXPIRED:
-        // Simply retry - SDK will get new challenge
+      case ErrorCode.UPSTREAM_FAILED:
+        console.log('Target API is down:', error.message);
         break;
-        
       default:
         console.log('Error:', error.message);
     }
@@ -342,33 +307,39 @@ try {
 
 ## React Integration
 
-### Basic React Component
+### With `@txnlab/use-wallet-react`
+
+This matches how the frontend GatewayTester works:
 
 ```tsx
 import React, { useState } from 'react';
-import { EendhanClient } from '@eendhan/sdk';
+import { EendhanClient, CallResult, ErrorCode } from '@eendhan/sdk';
 import { useWallet } from '@txnlab/use-wallet-react';
 
-function AIChat() {
-  const { signTransactions } = useWallet();
-  const [response, setResponse] = useState('');
+function AIProxy() {
+  const { activeAddress, signTransactions } = useWallet();
+  const [result, setResult] = useState<CallResult | null>(null);
   const [loading, setLoading] = useState(false);
-  
-  const client = new EendhanClient({
-    endpointId: '123e4567-e89b-12d3-a456-426614174000',
-    signer: signTransactions,
-    tier: 'premium',
-  });
+  const [error, setError] = useState('');
 
-  const handleSend = async (message: string) => {
+  const handleCall = async () => {
+    if (!activeAddress) return;
+
+    const client = new EendhanClient({
+      endpointId: '123e4567-e89b-12d3-a456-426614174000',
+      senderAddress: activeAddress,
+      signer: signTransactions,
+      tier: 'basic',
+    });
+
     setLoading(true);
+    setError('');
+
     try {
-      const result = await client.call({
-        messages: [{ role: 'user', content: message }],
-      });
-      setResponse(result.response);
-    } catch (error) {
-      console.error(error);
+      const res = await client.call({ query: 'robot-1' });
+      setResult(res);
+    } catch (e: any) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -376,187 +347,115 @@ function AIChat() {
 
   return (
     <div>
-      <input onChange={e => handleSend(e.target.value)} />
-      {loading && <span>Loading...</span>}
-      {response && <div>{response}</div>}
+      <button onClick={handleCall} disabled={loading || !activeAddress}>
+        {loading ? 'Processing...' : 'Call AI Endpoint'}
+      </button>
+
+      {result?.isImage && <img src={result.data.imageUrl} alt="AI Generated" />}
+      {result && !result.isImage && <pre>{JSON.stringify(result.data, null, 2)}</pre>}
+      {result?.txid && <p>Payment TX: {result.txid}</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 }
 ```
 
-### React Hook
+### Custom React Hook
 
 ```typescript
 import { useMemo } from 'react';
 import { EendhanClient } from '@eendhan/sdk';
 import { useWallet } from '@txnlab/use-wallet-react';
 
-function useEendhan(endpointId: string, tier?: string) {
-  const { signTransactions } = useWallet();
-  
+export function useEendhan(endpointId: string, tier = 'basic') {
+  const { activeAddress, signTransactions } = useWallet();
+
   return useMemo(() => {
+    if (!activeAddress) return null;
     return new EendhanClient({
       endpointId,
-      tier,
+      senderAddress: activeAddress,
       signer: signTransactions,
+      tier,
     });
-  }, [endpointId, tier, signTransactions]);
+  }, [endpointId, activeAddress, signTransactions, tier]);
 }
 
-// Usage
-function Component() {
-  const client = useEendhan('endpoint-id', 'premium');
-  
-  const handleClick = async () => {
-    const result = await client.call({ prompt: 'Hello' });
-    console.log(result);
-  };
-  
-  return <button onClick={handleClick}>Call AI</button>;
-}
+// Usage:
+// const client = useEendhan('123e4567-...', 'premium');
+// const result = await client?.call({ prompt: 'Hello' });
 ```
 
 ---
 
 ## Node.js Integration
 
-### Server-Side Usage
-
-For server-side calls, you'll need to handle signing differently:
+For server-side usage with a private key:
 
 ```typescript
 import { EendhanClient } from '@eendhan/sdk';
 import algosdk from 'algosdk';
 
-// Use a private key signer
-const privateKey = process.env.WALLET_PRIVATE_KEY;
-const account = algosdk.mnemonicToSecretKey(
-  algosdk.secretKeyToMnemonic(
-    Uint8Array.from(Buffer.from(privateKey, 'base64'))
-  )
-);
+const mnemonic = process.env.WALLET_MNEMONIC!;
+const account = algosdk.mnemonicToSecretKey(mnemonic);
 
-const signer = async (txns: Uint8Array[]): Promise<Uint8Array[]> => {
+const signer = async (txns: algosdk.Transaction[]) => {
   return txns.map(txn => {
-    const tx = algosdk.decodeSignedTransaction(txn);
-    return algosdk.signTransaction(txn, account.sk).blob;
+    const signedTxn = txn.signTxn(account.sk);
+    return signedTxn;
   });
 };
 
 const client = new EendhanClient({
-  endpointId: process.env.ENDPOINT_ID,
+  endpointId: process.env.ENDPOINT_ID!,
+  senderAddress: account.addr.toString(),
   signer,
+  backendUrl: 'https://your-backend.onrender.com',
 });
 
-// Make calls
-const result = await client.call({ query: 'Hello AI' });
-```
-
-### Next.js API Route
-
-```typescript
-// pages/api/ai.ts
-import { EendhanClient } from '@eendhan/sdk';
-
-export default async function handler(req, res) {
-  const client = new EendhanClient({
-    endpointId: process.env.ENDPOINT_ID,
-    signer: getSigner(), // Your signer function
-  });
-
-  try {
-    const result = await client.call(req.body);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-}
+const result = await client.call({ query: 'Hello from server' });
+console.log(result.data);
 ```
 
 ---
 
 ## Examples
 
-### Example 1: Simple Chat
+### Example 1: Image Generation (Robohash / Pollinations)
 
 ```typescript
-const client = new EendhanClient({
-  endpointId: 'my-chat-endpoint',
-  tier: 'premium',
-});
+const result = await client.call({ query: 'futuristic-robot' });
 
-const response = await client.call({
-  messages: [
-    { role: 'system', content: 'You are a helpful assistant.' },
-    { role: 'user', content: 'What is Algorand?' },
-  ],
-});
-
-console.log(response.choices[0].message.content);
+if (result.isImage) {
+  // Display image
+  document.getElementById('img')!.src = result.data.imageUrl;
+} else {
+  console.log(result.data);
+}
 ```
 
-### Example 2: Image Generation
+### Example 2: Fetch and Display Tiers
 
 ```typescript
-const client = new EendhanClient({
-  endpointId: 'my-image-endpoint',
-  tier: 'high-res',
+const pricing = await client.getPricing();
+
+pricing.tiers.forEach(tier => {
+  console.log(`${tier.name}: ${tier.priceUsdc} USDC`);
 });
 
-const response = await client.call({
-  prompt: 'A futuristic city with flying cars',
-  size: '1024x1024',
-  style: 'digital-art',
-});
-
-console.log(response.image_url);
+// Switch to premium
+client.setTier('premium');
+const result = await client.call({ prompt: 'Hello' });
 ```
 
-### Example 3: Code Completion
+### Example 3: Velocity Cap Check
 
 ```typescript
-const client = new EendhanClient({
-  endpointId: 'my-code-endpoint',
-  tier: 'fast',
-});
+const velocity = client.getVelocityStatus();
+const remainingUsdc = velocity.remaining / 1_000_000;
 
-const response = await client.call({
-  prefix: 'function fibonacci(n) {',
-  language: 'javascript',
-  max_tokens: 100,
-});
-
-console.log(response.completion);
-```
-
-### Example 4: Custom Error Handling UI
-
-```typescript
-function handleAPIError(error) {
-  if (error.code === 'VELOCITY_CAPPED') {
-    return {
-      title: 'Spending Limit Reached',
-      message: `You've used ${(error.velocitySpent / 1000000).toFixed(2)} USDC of your $50 limit.`,
-      action: 'Try again in ' + error.remainingTime + ' seconds',
-      type: 'warning',
-    };
-  }
-  
-  if (error.code === 'RATE_LIMITED') {
-    return {
-      title: 'Too Many Requests',
-      message: 'Please wait a moment before making another request.',
-      action: 'Retrying automatically...',
-      type: 'info',
-    };
-  }
-  
-  return {
-    title: 'Something went wrong',
-    message: error.message,
-    action: 'Try again',
-    type: 'error',
-  };
+if (remainingUsdc < 1) {
+  console.log('Warning: Almost at velocity cap!');
 }
 ```
 
@@ -566,29 +465,25 @@ function handleAPIError(error) {
 
 ### Common Issues
 
-**"No signer configured"**
-- Ensure you're using `useWallet` in React
-- Or provide a custom signer function
+**"Transaction rejected in wallet"**
+- User cancelled the Pera/Defly popup
+- Retry the call
 
-**"Payment verification failed"**
-- Check wallet has enough USDC (10458941 on Testnet)
-- Verify session hasn't expired (60s)
+**"Broadcast failed"**
+- Wallet may not have enough ALGO for transaction fees
+- Wallet may not have opted in to USDC (Asset ID: 10458941)
+
+**"Verification failed"**
+- Session may have expired (60s window)
+- Retry — the SDK will get a fresh challenge
 
 **"Velocity cap exceeded"**
-- Wait for 10-minute window to reset
-- Consider upgrading to higher tier
+- You've spent $50 in the last 10 minutes
+- Wait for the window to reset
 
 **"Endpoint not found"**
-- Verify endpoint ID is correct
-- Check endpoint is active in dashboard
-
----
-
-## Support
-
-- Discord: [Join our community](https://discord.gg/algogate)
-- Email: support@algogate.ai
-- GitHub: [Report issues](https://github.com/eendhan/sdk/issues)
+- Verify the endpoint ID matches one from the Creator Portal
+- Check the backend URL is correct
 
 ---
 
